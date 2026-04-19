@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: letter-postgres
+    environment:
+      POSTGRES_DB: letter
+      POSTGRES_USER: letter
+      POSTGRES_PASSWORD: letter
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U letter"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: letter-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 生产/完整联调启用,开发阶段在 IDE 里直接跑服务端
+  # ktor-server:
+  #   build:
+  #     context: .
+  #     dockerfile: server/Dockerfile
+  #   container_name: letter-server
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: jdbc:postgresql://postgres:5432/letter
+  #     DATABASE_USER: letter
+  #     DATABASE_PASSWORD: letter
+  #     S3_ENDPOINT: http://minio:9000
+  #     S3_ACCESS_KEY: minioadmin
+  #     S3_SECRET_KEY: minioadmin
+  #     JWT_SECRET: dev-secret-change-me
+  #   ports:
+  #     - "8080:8080"
+
+volumes:
+  pg-data:
+  minio-data:

@@ -1,0 +1,46 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Kotlin
+**/kotlin-js-store/
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+local.properties
+captures/
+.externalNativeBuild
+.cxx/
+
+# Compose / Kotlin Native
+xcuserdata/
+**/*.xcodeproj/xcuserdata/
+Pods/
+
+# Env / secrets
+.env
+.env.local
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/gradle/wrapper/gradle-wrapper.jar

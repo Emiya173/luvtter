@@ -1,0 +1,28 @@
+ktor:
+  application:
+    modules:
+      - com.letter.server.ApplicationKt.module
+  deployment:
+    port: 8080
+    host: 0.0.0.0
+  development: true
+
+database:
+  url: "${DATABASE_URL:jdbc:postgresql://localhost:5432/letter}"
+  user: "${DATABASE_USER:letter}"
+  password: "${DATABASE_PASSWORD:letter}"
+  maxPoolSize: 10
+
+storage:
+  endpoint: "${S3_ENDPOINT:http://localhost:9000}"
+  accessKey: "${S3_ACCESS_KEY:minioadmin}"
+  secretKey: "${S3_SECRET_KEY:minioadmin}"
+  bucket: "${S3_BUCKET:letter}"
+
+jwt:
+  secret: "${JWT_SECRET:dev-secret-change-me}"
+  issuer: "letter-app"
+  audience: "letter-app-users"
+  realm: "letter"
+  accessTokenTtlSeconds: 3600
+  refreshTokenTtlDays: 30
