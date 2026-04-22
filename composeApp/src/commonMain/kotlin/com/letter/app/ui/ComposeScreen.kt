@@ -104,7 +104,7 @@ fun ComposeScreen(
                                     body = LetterBodyText(listOf(TextSegment(content)))
                                 )
                             )
-                            val result = container.letters.send(draft.id)
+                            val result = container.letters.send(draft.summary.id)
                             status = "已寄出，预计送达: ${result.estimatedDeliveryAt}"
                             onSent()
                         } catch (e: Exception) {

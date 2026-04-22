@@ -10,6 +10,7 @@ import com.letter.server.config.NotFoundException
 import com.letter.server.config.ValidationException
 import com.letter.server.db.*
 import com.letter.server.user.toDto
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -33,6 +34,7 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 private val jsonCodec = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
+private val log = KotlinLogging.logger {}
 
 @OptIn(ExperimentalUuidApi::class)
 class LetterService(private val events: EventGenerator = EventGenerator()) {
@@ -253,6 +255,7 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
         }
 
         val summary = buildSummary(Letters.selectAll().where { Letters.id eq id }.first(), senderId)
+        log.info { "letter.send id=$id from=$senderId to=$recipientId distance=$distance tier=${stamp[Stamps.tier]} deliveryAt=$deliveryAt" }
         SendResultDto(
             letter = summary,
             estimatedDeliveryAt = deliveryAt.toString(),
@@ -281,6 +284,13 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
                         it[deliveredAt] = nowTs
                         it[updatedAt] = nowTs
                     }
+                    log.info { "letter.delivered id=${row[Letters.id]} to=$userId" }
+                    NotificationService.emit(
+                        userId = userId,
+                        type = "new_letter",
+                        title = "你有一封新信",
+                        letterId = row[Letters.id]
+                    )
                 }
                 buildSummary(Letters.selectAll().where { Letters.id eq row[Letters.id] }.first(), userId)
             }

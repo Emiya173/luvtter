@@ -15,6 +15,7 @@ import com.letter.server.db.Stationeries
 import com.letter.server.db.Stickers
 import com.letter.server.user.UserRow
 import com.letter.server.user.toDto
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -30,6 +31,7 @@ import kotlin.uuid.Uuid
 
 private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
 private val HANDLE_REGEX = Regex("^[A-Za-z0-9_\\u4e00-\\u9fa5]{3,20}$")
+private val log = KotlinLogging.logger {}
 
 @OptIn(ExperimentalUuidApi::class)
 class AuthService(private val jwt: JwtConfig) {
@@ -72,6 +74,7 @@ class AuthService(private val jwt: JwtConfig) {
         seedDefaultAssets(userId, ts)
 
         val user = Users.selectAll().where { Users.id eq userId }.first().let(::userRow).toDto()
+        log.info { "auth.register userId=$userId email=${req.email} handle=$tempHandle" }
         issueTokens(userId, user, deviceName, platform)
     }
 
@@ -86,6 +89,7 @@ class AuthService(private val jwt: JwtConfig) {
 
         val userId = cred[AuthCredentials.userId]
         val user = Users.selectAll().where { Users.id eq userId }.first().let(::userRow).toDto()
+        log.info { "auth.login userId=$userId email=${req.email} platform=${req.platform}" }
         issueTokens(userId, user, req.deviceName, req.platform)
     }
 
@@ -113,7 +117,8 @@ class AuthService(private val jwt: JwtConfig) {
     }
 
     fun logout(refreshToken: String) = transaction {
-        AuthSessions.deleteWhere { AuthSessions.refreshToken eq refreshToken }
+        val n = AuthSessions.deleteWhere { AuthSessions.refreshToken eq refreshToken }
+        log.info { "auth.logout sessionsRemoved=$n" }
     }
 
     fun logoutSession(userId: Uuid, sessionId: Uuid) = transaction {

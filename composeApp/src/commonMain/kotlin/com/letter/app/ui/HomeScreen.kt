@@ -29,8 +29,18 @@ fun HomeScreen(
     var letters by remember { mutableStateOf<List<LetterSummaryDto>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var unread by remember { mutableStateOf(0) }
+    var reward by remember { mutableStateOf<String?>(null) }
 
     val user = container.tokens.current()?.user
+
+    LaunchedEffect(Unit) {
+        runCatching { unread = container.notifications.unreadCount() }
+        runCatching {
+            val r = container.dailyReward.claim(java.util.TimeZone.getDefault().id)
+            if (r.claimed) reward = "今日奖励已发放"
+        }
+    }
 
     suspend fun reload() {
         loading = true; error = null
@@ -51,8 +61,21 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text(user?.displayName?.let { "你好，$it" } ?: "信件") },
                 actions = {
+                    BadgedBox(badge = { if (unread > 0) Badge { Text("$unread") } }) {
+                        IconButton(onClick = {
+                            scope.launch {
+                                runCatching { container.notifications.markAllRead() }
+                                unread = 0
+                            }
+                        }) { Text("铃") }
+                    }
                     IconButton(onClick = onAddresses) { Text("址", style = MaterialTheme.typography.labelLarge) }
-                    IconButton(onClick = { scope.launch { reload() } }) { Text("⟳") }
+                    IconButton(onClick = {
+                        scope.launch {
+                            reload()
+                            runCatching { unread = container.notifications.unreadCount() }
+                        }
+                    }) { Text("⟳") }
                     TextButton(onClick = onLogout) { Text("退出") }
                 }
             )
@@ -72,6 +95,11 @@ fun HomeScreen(
             }
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
+            }
+            reward?.let {
+                Surface(color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+                    Text(it, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                }
             }
             if (!loading && letters.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

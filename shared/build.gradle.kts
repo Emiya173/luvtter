@@ -35,6 +35,7 @@ kotlin {
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.koin.core)
+            implementation(libs.kotlin.logging.mp)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)

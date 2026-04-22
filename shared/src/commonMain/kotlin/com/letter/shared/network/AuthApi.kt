@@ -1,16 +1,23 @@
 package com.letter.shared.network
 
 import com.letter.contract.dto.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 
-class AuthApi(private val client: HttpClient) {
-    suspend fun register(req: RegisterRequest): TokenPair =
-        client.post("/api/v1/auth/register") { setBody(req) }.body<ApiResponse<TokenPair>>().data
+private val log = KotlinLogging.logger {}
 
-    suspend fun login(req: LoginRequest): TokenPair =
-        client.post("/api/v1/auth/login") { setBody(req) }.body<ApiResponse<TokenPair>>().data
+class AuthApi(private val client: HttpClient) {
+    suspend fun register(req: RegisterRequest): TokenPair {
+        log.info { "auth.register email=${req.email}" }
+        return client.post("/api/v1/auth/register") { setBody(req) }.body<ApiResponse<TokenPair>>().data
+    }
+
+    suspend fun login(req: LoginRequest): TokenPair {
+        log.info { "auth.login email=${req.email}" }
+        return client.post("/api/v1/auth/login") { setBody(req) }.body<ApiResponse<TokenPair>>().data
+    }
 
     suspend fun refresh(req: RefreshRequest): TokenPair =
         client.post("/api/v1/auth/refresh") { setBody(req) }.body<ApiResponse<TokenPair>>().data

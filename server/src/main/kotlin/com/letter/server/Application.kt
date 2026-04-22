@@ -9,11 +9,18 @@ import com.letter.server.config.configureDatabase
 import com.letter.server.config.configureSerialization
 import com.letter.server.config.configureStatusPages
 import com.letter.server.config.runMigrations
+import com.letter.server.mail.AttachmentService
+import com.letter.server.mail.FolderService
 import com.letter.server.mail.LetterService
+import com.letter.server.mail.attachmentRoutes
+import com.letter.server.mail.folderRoutes
 import com.letter.server.mail.letterRoutes
+import com.letter.server.mail.notificationRoutes
 import com.letter.server.routes.helloRoutes
 import com.letter.server.stamp.CatalogService
+import com.letter.server.stamp.DailyRewardService
 import com.letter.server.stamp.catalogRoutes
+import com.letter.server.stamp.dailyRewardRoutes
 import com.letter.server.user.AddressService
 import com.letter.server.user.ContactService
 import com.letter.server.user.UserService
@@ -58,6 +65,9 @@ fun Application.module() {
     val contactService = ContactService()
     val catalogService = CatalogService()
     val letterService = LetterService()
+    val folderService = FolderService()
+    val attachmentService = AttachmentService()
+    val dailyRewardService = DailyRewardService()
 
     routing {
         helloRoutes()
@@ -67,5 +77,9 @@ fun Application.module() {
         contactRoutes(contactService)
         catalogRoutes(catalogService)
         letterRoutes(letterService)
+        folderRoutes(folderService)
+        attachmentRoutes(attachmentService)
+        notificationRoutes()
+        dailyRewardRoutes(dailyRewardService)
     }
 }

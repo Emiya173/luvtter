@@ -13,4 +13,6 @@ class AppContainer(baseUrl: String) {
     val contacts = ContactApi(http)
     val catalog = CatalogApi(http)
     val letters = LetterApi(http)
+    val notifications = NotificationApi(http)
+    val dailyReward = DailyRewardApi(http)
 }
