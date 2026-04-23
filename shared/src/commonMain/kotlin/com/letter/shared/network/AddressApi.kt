@@ -41,6 +41,16 @@ class ContactApi(private val client: HttpClient) {
 
     suspend fun lookup(handle: String): LookupResult =
         client.get("/api/v1/contacts/lookup") { url { parameters.append("handle", handle) } }.unwrap()
+
+    suspend fun listBlocks(): List<BlockDto> =
+        client.get("/api/v1/blocks").unwrap()
+
+    suspend fun block(targetId: String): BlockDto =
+        client.post("/api/v1/blocks") { setBody(CreateBlockRequest(targetId)) }.unwrap()
+
+    suspend fun unblock(targetId: String) {
+        client.delete("/api/v1/blocks/$targetId").ensureSuccess()
+    }
 }
 
 class CatalogApi(private val client: HttpClient) {

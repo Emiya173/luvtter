@@ -23,6 +23,9 @@ import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.like
+import org.jetbrains.exposed.v1.core.lowerCase
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -398,6 +401,26 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
             if (row[Letters.recipientId] == viewerId) it[recipientHiddenAt] = now()
             it[updatedAt] = now()
         }
+    }
+
+    fun search(userId: Uuid, query: String, limit: Int = 50): List<LetterSummaryDto> = transaction {
+        val q = query.trim()
+        if (q.isBlank()) return@transaction emptyList()
+        val pattern = "%" + q.lowercase().replace("%", "\\%").replace("_", "\\_") + "%"
+        val contentIds = LetterContents.selectAll()
+            .where { LetterContents.indexText.lowerCase() like pattern }
+            .limit(limit * 4)
+            .map { it[LetterContents.letterId] }
+        if (contentIds.isEmpty()) return@transaction emptyList()
+        Letters.selectAll()
+            .where {
+                (Letters.id inList contentIds) and
+                    (((Letters.senderId eq userId) and Letters.senderHiddenAt.isNull()) or
+                        ((Letters.recipientId eq userId) and Letters.recipientHiddenAt.isNull()))
+            }
+            .orderBy(Letters.createdAt to SortOrder.DESC)
+            .limit(limit)
+            .map { buildSummary(it, userId) }
     }
 
     fun favorites(userId: Uuid, limit: Int = 50): List<LetterSummaryDto> = transaction {

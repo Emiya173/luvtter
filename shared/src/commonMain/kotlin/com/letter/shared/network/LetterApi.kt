@@ -83,6 +83,14 @@ class LetterApi(private val client: HttpClient) {
         client.delete("/api/v1/letters/$id/favorite").ensureSuccess()
     }
 
+    suspend fun search(query: String, limit: Int = 50): List<LetterSummaryDto> =
+        client.get("/api/v1/letters/search") {
+            url {
+                parameters.append("q", query)
+                parameters.append("limit", limit.toString())
+            }
+        }.unwrap()
+
     suspend fun favorites(limit: Int = 50): List<LetterSummaryDto> =
         client.get("/api/v1/me/favorites") { url { parameters.append("limit", limit.toString()) } }.unwrap()
 

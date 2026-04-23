@@ -103,6 +103,12 @@ fun Route.letterRoutes(service: LetterService) {
             val hidden = call.request.queryParameters["hidden"]?.toBooleanStrictOrNull() ?: false
             call.respond(ApiResponse(service.outbox(uid, limit, hidden)))
         }
+        get("/api/v1/letters/search") {
+            val uid = call.principal<JWTPrincipal>()!!.userId()
+            val q = call.request.queryParameters["q"].orEmpty()
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
+            call.respond(ApiResponse(service.search(uid, q, limit)))
+        }
         get("/api/v1/me/favorites") {
             val uid = call.principal<JWTPrincipal>()!!.userId()
             val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50

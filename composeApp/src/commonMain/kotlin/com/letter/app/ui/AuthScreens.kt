@@ -22,8 +22,8 @@ fun LoginScreen(
     onGoRegister: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("test0@qq.com") }
+    var password by remember { mutableStateOf("zxc123456") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 

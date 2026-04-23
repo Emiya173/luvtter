@@ -45,6 +45,7 @@ fun HomeScreen(
     var showNotifications by remember { mutableStateOf(false) }
     var showSwitchLocation by remember { mutableStateOf(false) }
     var showFinalizeHandle by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
 
     val user = container.tokens.session.collectAsState().value?.user
     val currentAddress = remember(user, addresses) {
@@ -105,6 +106,7 @@ fun HomeScreen(
                             }
                         }) { Text("铃") }
                     }
+                    IconButton(onClick = { showSearch = true }) { Text("搜", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onContacts) { Text("人", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onAddresses) { Text("址", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = {
@@ -310,6 +312,77 @@ fun HomeScreen(
             }
         )
     }
+
+    if (showSearch) {
+        SearchDialog(
+            container = container,
+            onDismiss = { showSearch = false },
+            onOpen = { id -> showSearch = false; onOpenLetter(id) }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchDialog(
+    container: AppContainer,
+    onDismiss: () -> Unit,
+    onOpen: (String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<LetterSummaryDto>>(emptyList()) }
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("搜索信件") },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 420.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("关键词") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        enabled = !busy && query.isNotBlank(),
+                        onClick = {
+                            busy = true; status = null
+                            scope.launch {
+                                try { results = container.letters.search(query) }
+                                catch (e: Exception) { status = e.message }
+                                finally { busy = false }
+                            }
+                        }
+                    ) { Text(if (busy) "搜索中" else "搜索") }
+                }
+                status?.let { Spacer(Modifier.height(6.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+                Spacer(Modifier.height(8.dp))
+                if (results.isEmpty() && !busy && query.isNotBlank() && status == null) {
+                    Text("无匹配", style = MaterialTheme.typography.bodySmall)
+                }
+                LazyColumn {
+                    items(results, key = { it.id }) { l ->
+                        ListItem(
+                            headlineContent = {
+                                val who = "${l.sender?.displayName ?: "—"} → ${l.recipient?.displayName ?: "—"}"
+                                Text(who)
+                            },
+                            supportingContent = { l.preview?.let { Text(it, maxLines = 2) } },
+                            modifier = Modifier.clickable { onOpen(l.id) }
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
