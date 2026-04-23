@@ -77,6 +77,11 @@ fun Route.letterRoutes(service: LetterService) {
                 service.unhide(uid, id)
                 call.respond(HttpStatusCode.NoContent)
             }
+            get("/{id}/events") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val id = parseId(call.parameters["id"]!!)
+                call.respond(ApiResponse(service.events(uid, id)))
+            }
             // 测试入口：将在途信件加速到 N 秒后送达（仅寄件人；上限 1h）
             post("/{id}/expedite") {
                 val uid = call.principal<JWTPrincipal>()!!.userId()

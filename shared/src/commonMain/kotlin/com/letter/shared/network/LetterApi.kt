@@ -71,4 +71,15 @@ class LetterApi(private val client: HttpClient) {
             url { parameters.append("seconds", seconds.toString()) }
         }.unwrap()
     }
+
+    suspend fun events(id: String): List<LetterEventDto> =
+        client.get("/api/v1/letters/$id/events").unwrap()
+
+    suspend fun favorite(id: String) {
+        client.post("/api/v1/letters/$id/favorite").ensureSuccess()
+    }
+
+    suspend fun unfavorite(id: String) {
+        client.delete("/api/v1/letters/$id/favorite").ensureSuccess()
+    }
 }

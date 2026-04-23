@@ -400,6 +400,30 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
         }
     }
 
+    fun events(viewerId: Uuid, id: Uuid): List<LetterEventDto> = transaction {
+        val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
+            ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        if (row[Letters.senderId] != viewerId && row[Letters.recipientId] != viewerId) {
+            throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        }
+        val nowTs = now()
+        LetterEvents.selectAll()
+            .where { (LetterEvents.letterId eq id) and (LetterEvents.visibleAt lessEq nowTs) }
+            .orderBy(LetterEvents.visibleAt to SortOrder.ASC)
+            .map { e ->
+                LetterEventDto(
+                    id = e[LetterEvents.id].toString(),
+                    letterId = e[LetterEvents.letterId].toString(),
+                    eventType = e[LetterEvents.eventType],
+                    title = e[LetterEvents.title],
+                    content = e[LetterEvents.content],
+                    imageUrl = e[LetterEvents.imageUrl],
+                    visibleAt = e[LetterEvents.visibleAt].toString(),
+                    readAt = e[LetterEvents.readAt]?.toString()
+                )
+            }
+    }
+
     fun unhide(viewerId: Uuid, id: Uuid) = transaction {
         val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
             ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")

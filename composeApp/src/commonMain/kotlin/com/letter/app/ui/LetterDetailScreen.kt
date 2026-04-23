@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -12,6 +13,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.letter.contract.dto.LetterDetailDto
+import com.letter.contract.dto.LetterEventDto
 import com.letter.shared.AppContainer
 import kotlinx.coroutines.launch
 
@@ -20,20 +22,26 @@ import kotlinx.coroutines.launch
 fun LetterDetailScreen(
     container: AppContainer,
     letterId: String,
+    onReply: (recipientHandle: String?) -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var detail by remember { mutableStateOf<LetterDetailDto?>(null) }
+    var events by remember { mutableStateOf<List<LetterEventDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    val viewerId = container.tokens.session.collectAsState().value?.user?.id
 
-    LaunchedEffect(letterId) {
+    suspend fun reload() {
         try {
             detail = container.letters.detail(letterId)
+            events = runCatching { container.letters.events(letterId) }.getOrDefault(emptyList())
             if (detail?.summary?.status == "delivered") {
                 runCatching { container.letters.markRead(letterId) }
             }
         } catch (e: Exception) { error = e.message }
     }
+
+    LaunchedEffect(letterId) { reload() }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("信件详情") }, navigationIcon = { TextButton(onClick = onBack) { Text("返回") } }) }
@@ -47,10 +55,20 @@ fun LetterDetailScreen(
                 return@Column
             }
             val s = d.summary
-            Text(s.sender?.displayName ?: "—", style = MaterialTheme.typography.titleMedium)
+            val viewerIsRecipient = viewerId != null && s.recipient?.id == viewerId
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(s.sender?.displayName ?: "—", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.weight(1f))
+                if (s.isFavorite) {
+                    AssistChip(onClick = {}, label = { Text("★ 已收藏") })
+                }
+            }
             Text("→ ${s.recipient?.displayName ?: "—"}", style = MaterialTheme.typography.bodyMedium)
             s.recipientAddressLabel?.takeIf { it.isNotBlank() }?.let {
                 Text("收件地址：$it", style = MaterialTheme.typography.labelMedium)
+            }
+            s.replyToLetterId?.let {
+                Text("↩ 回复此前的来信", style = MaterialTheme.typography.labelSmall)
             }
             Spacer(Modifier.height(8.dp))
             Text("状态: ${s.status}${s.transitStage?.let { " ($it)" } ?: ""}", style = MaterialTheme.typography.labelMedium)
@@ -77,8 +95,40 @@ fun LetterDetailScreen(
                 Text(text, style = MaterialTheme.typography.bodyLarge)
             }
 
+            if (events.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                Text("途中事件", style = MaterialTheme.typography.titleSmall)
+                events.forEach { e ->
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Text(
+                            e.title ?: e.eventType,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        e.content?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text(e.visibleAt.take(19).replace('T', ' '), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+
             Spacer(Modifier.height(24.dp))
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (viewerIsRecipient && (s.status == "delivered" || s.status == "read")) {
+                    Button(onClick = { onReply(s.sender?.handle) }) { Text("回信") }
+                    Spacer(Modifier.width(8.dp))
+                }
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        runCatching {
+                            if (s.isFavorite) container.letters.unfavorite(letterId)
+                            else container.letters.favorite(letterId)
+                        }.onSuccess { reload() }.onFailure { error = it.message }
+                    }
+                }) { Text(if (s.isFavorite) "取消收藏" else "收藏") }
+                Spacer(Modifier.width(8.dp))
                 if (s.hidden) {
                     OutlinedButton(onClick = {
                         scope.launch {

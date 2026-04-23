@@ -26,7 +26,7 @@ fun App() {
             )
             Screen.Home -> HomeScreen(
                 container = container,
-                onCompose = { screen = Screen.Compose },
+                onCompose = { screen = Screen.Compose() },
                 onAddresses = { screen = Screen.Addresses },
                 onContacts = { screen = Screen.Contacts },
                 onOpenLetter = { screen = Screen.LetterDetail(it) },
@@ -35,14 +35,17 @@ fun App() {
                     screen = Screen.Login
                 }
             )
-            Screen.Compose -> ComposeScreen(
+            is Screen.Compose -> ComposeScreen(
                 container = container,
+                replyToLetterId = s.replyToLetterId,
+                prefillRecipientHandle = s.recipientHandle,
                 onSent = { screen = Screen.Home },
                 onCancel = { screen = Screen.Home }
             )
             is Screen.LetterDetail -> LetterDetailScreen(
                 container = container,
                 letterId = s.id,
+                onReply = { handle -> screen = Screen.Compose(replyToLetterId = s.id, recipientHandle = handle) },
                 onBack = { screen = Screen.Home }
             )
             Screen.Addresses -> AddressesScreen(

@@ -16,7 +16,9 @@ import kotlinx.coroutines.launch
 fun ComposeScreen(
     container: AppContainer,
     onSent: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    replyToLetterId: String? = null,
+    prefillRecipientHandle: String? = null
 ) {
     val scope = rememberCoroutineScope()
 
@@ -25,7 +27,7 @@ fun ComposeScreen(
     var assets by remember { mutableStateOf<MyAssetsDto?>(null) }
     var contacts by remember { mutableStateOf<List<ContactDto>>(emptyList()) }
 
-    var recipientHandle by remember { mutableStateOf("") }
+    var recipientHandle by remember { mutableStateOf(prefillRecipientHandle.orEmpty()) }
     var content by remember { mutableStateOf("") }
     var stampId by remember { mutableStateOf<String?>(null) }
     var senderAddressId by remember { mutableStateOf<String?>(null) }
@@ -37,17 +39,6 @@ fun ComposeScreen(
 
     var loading by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        try {
-            stamps = container.catalog.stamps()
-            addresses = container.addresses.list()
-            assets = container.catalog.myAssets()
-            contacts = runCatching { container.contacts.list() }.getOrDefault(emptyList())
-            stampId = stamps.firstOrNull()?.id
-            senderAddressId = addresses.firstOrNull { it.isDefault }?.id ?: addresses.firstOrNull()?.id
-        } catch (e: Exception) { status = "加载失败: ${e.message}" }
-    }
 
     suspend fun lookupRecipient() {
         if (recipientHandle.isBlank()) return
@@ -65,8 +56,25 @@ fun ComposeScreen(
         } finally { lookupBusy = false }
     }
 
+    LaunchedEffect(Unit) {
+        try {
+            stamps = container.catalog.stamps()
+            addresses = container.addresses.list()
+            assets = container.catalog.myAssets()
+            contacts = runCatching { container.contacts.list() }.getOrDefault(emptyList())
+            stampId = stamps.firstOrNull()?.id
+            senderAddressId = addresses.firstOrNull { it.isDefault }?.id ?: addresses.firstOrNull()?.id
+            if (!prefillRecipientHandle.isNullOrBlank()) lookupRecipient()
+        } catch (e: Exception) { status = "加载失败: ${e.message}" }
+    }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("写一封信") }, navigationIcon = { TextButton(onClick = onCancel) { Text("取消") } }) }
+        topBar = {
+            TopAppBar(
+                title = { Text(if (replyToLetterId != null) "回信" else "写一封信") },
+                navigationIcon = { TextButton(onClick = onCancel) { Text("取消") } }
+            )
+        }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
             if (contacts.isNotEmpty()) {
@@ -157,7 +165,8 @@ fun ComposeScreen(
                                     senderAddressId = senderAddressId,
                                     stampId = stampId,
                                     contentType = "text",
-                                    body = LetterBodyText(listOf(TextSegment(content)))
+                                    body = LetterBodyText(listOf(TextSegment(content))),
+                                    replyToLetterId = replyToLetterId
                                 )
                             )
                             val result = container.letters.send(draft.summary.id)
