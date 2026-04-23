@@ -1,6 +1,8 @@
 package com.letter.server.auth
 
 import com.letter.contract.dto.*
+import com.letter.server.common.parseId
+import com.letter.server.user.AddressService
 import com.letter.server.user.UserService
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -33,7 +35,7 @@ fun Route.authRoutes(authService: AuthService, userService: UserService) {
     }
 }
 
-fun Route.meRoutes(userService: UserService) {
+fun Route.meRoutes(userService: UserService, addressService: AddressService) {
     authenticate("auth-jwt") {
         route("/api/v1/me") {
             get {
@@ -54,6 +56,15 @@ fun Route.meRoutes(userService: UserService) {
                 val req = call.receive<FinalizeHandleRequest>()
                 call.respond(ApiResponse(userService.finalizeHandle(uid, req)))
             }
+            post("/current-address") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val req = call.receive<SetCurrentAddressRequest>()
+                call.respond(ApiResponse(userService.setCurrentAddress(uid, parseId(req.addressId))))
+            }
+        }
+        get("/api/v1/users/by-handle/{handle}/addresses") {
+            val handle = call.parameters["handle"].orEmpty()
+            call.respond(ApiResponse(addressService.listForRecipient(handle)))
         }
     }
 }

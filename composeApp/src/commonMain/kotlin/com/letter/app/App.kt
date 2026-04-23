@@ -28,6 +28,7 @@ fun App() {
                 container = container,
                 onCompose = { screen = Screen.Compose },
                 onAddresses = { screen = Screen.Addresses },
+                onContacts = { screen = Screen.Contacts },
                 onOpenLetter = { screen = Screen.LetterDetail(it) },
                 onLogout = {
                     container.tokens.clear()
@@ -45,6 +46,10 @@ fun App() {
                 onBack = { screen = Screen.Home }
             )
             Screen.Addresses -> AddressesScreen(
+                container = container,
+                onBack = { screen = Screen.Home }
+            )
+            Screen.Contacts -> ContactsScreen(
                 container = container,
                 onBack = { screen = Screen.Home }
             )

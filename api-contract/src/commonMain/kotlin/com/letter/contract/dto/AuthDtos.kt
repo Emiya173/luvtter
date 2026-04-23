@@ -38,8 +38,12 @@ data class UserDto(
     val displayName: String,
     val avatarUrl: String? = null,
     val bio: String? = null,
-    val onlyFriends: Boolean = false
+    val onlyFriends: Boolean = false,
+    val currentAddressId: String? = null
 )
+
+@Serializable
+data class SetCurrentAddressRequest(val addressId: String)
 
 @Serializable
 data class UpdateMeRequest(

@@ -72,7 +72,7 @@ fun Application.module() {
     routing {
         helloRoutes()
         authRoutes(authService, userService)
-        meRoutes(userService)
+        meRoutes(userService, addressService)
         addressRoutes(addressService)
         contactRoutes(contactService)
         catalogRoutes(catalogService)

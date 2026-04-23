@@ -196,7 +196,8 @@ internal fun userRow(row: org.jetbrains.exposed.v1.core.ResultRow): UserRow = Us
     displayName = row[Users.displayName],
     avatarUrl = row[Users.avatarUrl],
     bio = row[Users.bio],
-    onlyFriends = row[Users.onlyFriends]
+    onlyFriends = row[Users.onlyFriends],
+    currentAddressId = row[Users.currentAddressId]
 )
 
 object HandleValidator {

@@ -2,56 +2,57 @@ package com.letter.shared.network
 
 import com.letter.contract.dto.*
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.request.*
 
 class AddressApi(private val client: HttpClient) {
     suspend fun list(): List<AddressDto> =
-        client.get("/api/v1/me/addresses").body<ApiResponse<List<AddressDto>>>().data
+        client.get("/api/v1/me/addresses").unwrap()
 
     suspend fun create(req: CreateAddressRequest): AddressDto =
-        client.post("/api/v1/me/addresses") { setBody(req) }.body<ApiResponse<AddressDto>>().data
+        client.post("/api/v1/me/addresses") { setBody(req) }.unwrap()
 
     suspend fun update(id: String, req: UpdateAddressRequest): AddressDto =
-        client.patch("/api/v1/me/addresses/$id") { setBody(req) }.body<ApiResponse<AddressDto>>().data
+        client.patch("/api/v1/me/addresses/$id") { setBody(req) }.unwrap()
 
     suspend fun delete(id: String) {
-        client.delete("/api/v1/me/addresses/$id")
+        client.delete("/api/v1/me/addresses/$id").ensureSuccess()
     }
 
     suspend fun setDefault(id: String): AddressDto =
-        client.post("/api/v1/me/addresses/$id/default").body<ApiResponse<AddressDto>>().data
+        client.post("/api/v1/me/addresses/$id/default").unwrap()
 
     suspend fun listAnchors(): List<VirtualAnchorDto> =
-        client.get("/api/v1/virtual-anchors").body<ApiResponse<List<VirtualAnchorDto>>>().data
+        client.get("/api/v1/virtual-anchors").unwrap()
+
+    suspend fun listForRecipient(handle: String): List<RecipientAddressDto> =
+        client.get("/api/v1/users/by-handle/$handle/addresses").unwrap()
 }
 
 class ContactApi(private val client: HttpClient) {
     suspend fun list(): List<ContactDto> =
-        client.get("/api/v1/contacts").body<ApiResponse<List<ContactDto>>>().data
+        client.get("/api/v1/contacts").unwrap()
 
     suspend fun create(req: CreateContactRequest): ContactDto =
-        client.post("/api/v1/contacts") { setBody(req) }.body<ApiResponse<ContactDto>>().data
+        client.post("/api/v1/contacts") { setBody(req) }.unwrap()
 
     suspend fun delete(id: String) {
-        client.delete("/api/v1/contacts/$id")
+        client.delete("/api/v1/contacts/$id").ensureSuccess()
     }
 
     suspend fun lookup(handle: String): LookupResult =
-        client.get("/api/v1/contacts/lookup") { url { parameters.append("handle", handle) } }
-            .body<ApiResponse<LookupResult>>().data
+        client.get("/api/v1/contacts/lookup") { url { parameters.append("handle", handle) } }.unwrap()
 }
 
 class CatalogApi(private val client: HttpClient) {
     suspend fun stamps(): List<StampDto> =
-        client.get("/api/v1/stamps").body<ApiResponse<List<StampDto>>>().data
+        client.get("/api/v1/stamps").unwrap()
 
     suspend fun stationeries(): List<StationeryDto> =
-        client.get("/api/v1/stationeries").body<ApiResponse<List<StationeryDto>>>().data
+        client.get("/api/v1/stationeries").unwrap()
 
     suspend fun stickers(): List<StickerDto> =
-        client.get("/api/v1/stickers").body<ApiResponse<List<StickerDto>>>().data
+        client.get("/api/v1/stickers").unwrap()
 
     suspend fun myAssets(): MyAssetsDto =
-        client.get("/api/v1/me/assets").body<ApiResponse<MyAssetsDto>>().data
+        client.get("/api/v1/me/assets").unwrap()
 }

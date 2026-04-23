@@ -47,6 +47,14 @@ data class UpdateAddressRequest(
 )
 
 @Serializable
+data class RecipientAddressDto(
+    val id: String,
+    val label: String,
+    val type: String,
+    val isDefault: Boolean = false
+)
+
+@Serializable
 data class VirtualAnchorDto(
     val id: String,
     val code: String,

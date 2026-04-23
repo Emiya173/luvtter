@@ -23,6 +23,7 @@ fun AddressesScreen(container: AppContainer, onBack: () -> Unit) {
     var lat by remember { mutableStateOf("") }
     var lng by remember { mutableStateOf("") }
     var anchorId by remember { mutableStateOf<String?>(null) }
+    var virtualDistance by remember { mutableStateOf("100") }
     var status by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
 
@@ -60,6 +61,16 @@ fun AddressesScreen(container: AppContainer, onBack: () -> Unit) {
                     )
                 }
             }
+            if (anchorId != null) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = virtualDistance,
+                    onValueChange = { virtualDistance = it.filter(Char::isDigit).take(4) },
+                    label = { Text("虚拟距离 (0-1000)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             Spacer(Modifier.height(12.dp))
             Button(
                 enabled = !loading && label.isNotBlank() && (anchorId != null || (lat.isNotBlank() && lng.isNotBlank())),
@@ -67,7 +78,12 @@ fun AddressesScreen(container: AppContainer, onBack: () -> Unit) {
                     loading = true; status = null
                     scope.launch {
                         try {
-                            val req = if (anchorId != null) CreateAddressRequest(label = label, type = "virtual", anchorId = anchorId)
+                            val req = if (anchorId != null) CreateAddressRequest(
+                                label = label,
+                                type = "virtual",
+                                anchorId = anchorId,
+                                virtualDistance = virtualDistance.toIntOrNull()?.coerceIn(0, 1000) ?: 100
+                            )
                             else CreateAddressRequest(label = label, type = "real", latitude = lat.toDouble(), longitude = lng.toDouble())
                             container.addresses.create(req)
                             label = ""; lat = ""; lng = ""; anchorId = null

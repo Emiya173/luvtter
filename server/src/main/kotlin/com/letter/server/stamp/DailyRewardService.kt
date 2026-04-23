@@ -26,7 +26,7 @@ class DailyRewardService {
 
     fun claim(userId: Uuid, timezone: String?): DailyRewardDto = transaction {
         val zone = runCatching { ZoneId.of(timezone ?: "UTC") }.getOrDefault(ZoneId.of("UTC"))
-        val today = LocalDate.now(zone).toString()
+        val today: LocalDate = LocalDate.now(zone)
         val already = DailyRewards.selectAll()
             .where { (DailyRewards.userId eq userId) and (DailyRewards.rewardDate eq today) }
             .firstOrNull()

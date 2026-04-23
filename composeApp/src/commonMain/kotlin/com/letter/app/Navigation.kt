@@ -7,4 +7,5 @@ sealed interface Screen {
     data object Compose : Screen
     data class LetterDetail(val id: String) : Screen
     data object Addresses : Screen
+    data object Contacts : Screen
 }

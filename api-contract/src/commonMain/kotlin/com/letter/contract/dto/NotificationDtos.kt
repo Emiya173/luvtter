@@ -8,6 +8,8 @@ data class NotificationDto(
     val type: String, // new_letter | postcard | reply
     val letterId: String? = null,
     val eventId: String? = null,
+    val addressId: String? = null,
+    val addressLabel: String? = null,
     val title: String,
     val preview: String? = null,
     val readAt: String? = null,

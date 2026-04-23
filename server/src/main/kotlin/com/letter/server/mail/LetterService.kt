@@ -9,7 +9,7 @@ import com.letter.server.config.ApiException
 import com.letter.server.config.NotFoundException
 import com.letter.server.config.ValidationException
 import com.letter.server.db.*
-import com.letter.server.user.toDto
+import com.letter.server.user.publicDto
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.*
 import kotlinx.serialization.json.Json
@@ -267,33 +267,52 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
 
     fun inbox(userId: Uuid, limit: Int = 50): List<LetterSummaryDto> = transaction {
         val nowTs = now()
+        val currentAddressId = Users.selectAll().where { Users.id eq userId }
+            .firstOrNull()?.get(Users.currentAddressId)
+
+        // 步骤 1：扫描所有「应已送达但仍处 in_transit」的信，无论寄到哪个地址，
+        //         统一升级为 delivered 并按地址发通知（用户在 A，寄到 B 的信只通知不入箱）
         Letters.selectAll()
             .where {
                 (Letters.recipientId eq userId) and
-                    (Letters.status inList listOf("in_transit", "delivered", "read")) and
+                    (Letters.status eq "in_transit") and
+                    (Letters.deliveryAt lessEq nowTs)
+            }
+            .forEach { row ->
+                val lid = row[Letters.id]
+                val addrId = row[Letters.recipientAddressId]
+                Letters.update({ Letters.id eq lid }) {
+                    it[status] = "delivered"
+                    it[deliveredAt] = nowTs
+                    it[updatedAt] = nowTs
+                }
+                val addrLabel = addrId?.let { aid ->
+                    UserAddresses.selectAll().where { UserAddresses.id eq aid }
+                        .firstOrNull()?.get(UserAddresses.label)
+                }
+                val title = if (addrLabel != null) "「$addrLabel」收到一封新信" else "你有一封新信"
+                log.info { "letter.delivered id=$lid to=$userId address=$addrId" }
+                NotificationService.emit(
+                    userId = userId,
+                    type = "new_letter",
+                    title = title,
+                    letterId = lid,
+                    addressId = addrId
+                )
+            }
+
+        // 步骤 2：收件箱仅返回寄到「当前位置」的信件
+        Letters.selectAll()
+            .where {
+                val base = (Letters.recipientId eq userId) and
+                    (Letters.status inList listOf("delivered", "read")) and
                     (Letters.deliveryAt lessEq nowTs) and
                     (Letters.recipientHiddenAt.isNull())
+                if (currentAddressId != null) base and (Letters.recipientAddressId eq currentAddressId) else base
             }
             .orderBy(Letters.deliveryAt to SortOrder.DESC)
             .limit(limit)
-            .map { row ->
-                // 首次被查询时,将 in_transit 转为 delivered
-                if (row[Letters.status] == "in_transit") {
-                    Letters.update({ Letters.id eq row[Letters.id] }) {
-                        it[status] = "delivered"
-                        it[deliveredAt] = nowTs
-                        it[updatedAt] = nowTs
-                    }
-                    log.info { "letter.delivered id=${row[Letters.id]} to=$userId" }
-                    NotificationService.emit(
-                        userId = userId,
-                        type = "new_letter",
-                        title = "你有一封新信",
-                        letterId = row[Letters.id]
-                    )
-                }
-                buildSummary(Letters.selectAll().where { Letters.id eq row[Letters.id] }.first(), userId)
-            }
+            .map { row -> buildSummary(row, userId) }
     }
 
     fun outbox(userId: Uuid, limit: Int = 50): List<LetterSummaryDto> = transaction {
@@ -312,11 +331,17 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
         if (sender != viewerId && recipient != viewerId) {
             throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
         }
-        // 收件人在途时不应访问
+        // 收件人在途时不应访问；不在当前位置也不应访问
         if (recipient == viewerId && sender != viewerId) {
             val deliveryAt = row[Letters.deliveryAt]
             if (deliveryAt == null || deliveryAt.isAfter(now())) {
                 throw NotFoundException("LETTER_NOT_FOUND", "信件尚未送达")
+            }
+            val currentAddressId = Users.selectAll().where { Users.id eq viewerId }
+                .firstOrNull()?.get(Users.currentAddressId)
+            val letterAddressId = row[Letters.recipientAddressId]
+            if (currentAddressId != null && letterAddressId != null && currentAddressId != letterAddressId) {
+                throw NotFoundException("LETTER_NOT_FOUND", "请先切换到该信件的收件地址")
             }
         }
         loadDetail(id, viewerId)
@@ -433,10 +458,10 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
 
     private fun buildSummary(row: ResultRow, viewerId: Uuid): LetterSummaryDto {
         val sender = row[Letters.senderId]?.let { sid ->
-            Users.selectAll().where { Users.id eq sid }.firstOrNull()?.let(::userRow)?.toDto()
+            Users.selectAll().where { Users.id eq sid }.firstOrNull()?.let(::userRow)?.publicDto()
         }
         val recipient = row[Letters.recipientId]?.let { rid ->
-            Users.selectAll().where { Users.id eq rid }.firstOrNull()?.let(::userRow)?.toDto()
+            Users.selectAll().where { Users.id eq rid }.firstOrNull()?.let(::userRow)?.publicDto()
         }
         val stamp = row[Letters.stampId]?.let { sid ->
             Stamps.selectAll().where { Stamps.id eq sid }.firstOrNull()?.get(Stamps.code)

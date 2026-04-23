@@ -29,6 +29,11 @@ fun ComposeScreen(
     var stampId by remember { mutableStateOf<String?>(null) }
     var senderAddressId by remember { mutableStateOf<String?>(null) }
 
+    var recipientAddresses by remember { mutableStateOf<List<RecipientAddressDto>>(emptyList()) }
+    var recipientAddressId by remember { mutableStateOf<String?>(null) }
+    var recipientName by remember { mutableStateOf<String?>(null) }
+    var lookupBusy by remember { mutableStateOf(false) }
+
     var loading by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
 
@@ -42,15 +47,49 @@ fun ComposeScreen(
         } catch (e: Exception) { status = "加载失败: ${e.message}" }
     }
 
+    suspend fun lookupRecipient() {
+        if (recipientHandle.isBlank()) return
+        lookupBusy = true; status = null
+        try {
+            val lr = container.contacts.lookup(recipientHandle)
+            recipientName = lr.user.displayName
+            recipientAddresses = container.addresses.listForRecipient(recipientHandle)
+            recipientAddressId = recipientAddresses.firstOrNull { it.isDefault }?.id ?: recipientAddresses.firstOrNull()?.id
+        } catch (e: Exception) {
+            recipientName = null
+            recipientAddresses = emptyList()
+            recipientAddressId = null
+            status = "找不到收件人: ${e.message}"
+        } finally { lookupBusy = false }
+    }
+
     Scaffold(
         topBar = { TopAppBar(title = { Text("写一封信") }, navigationIcon = { TextButton(onClick = onCancel) { Text("取消") } }) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
-            OutlinedTextField(
-                value = recipientHandle, onValueChange = { recipientHandle = it.trim() },
-                label = { Text("收件人 handle") }, singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = recipientHandle, onValueChange = { recipientHandle = it.trim() },
+                    label = { Text("收件人 handle") }, singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Button(enabled = !lookupBusy && recipientHandle.isNotBlank(), onClick = { scope.launch { lookupRecipient() } }) {
+                    Text(if (lookupBusy) "查找中" else "查找")
+                }
+            }
+            recipientName?.let {
+                Text("→ $it", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+            }
+            if (recipientAddresses.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text("寄到对方哪个地址", style = MaterialTheme.typography.labelMedium)
+                FlowChips(
+                    items = recipientAddresses.map { Triple(it.id, "${it.label} · ${it.type}" + if (it.isDefault) " · 默认" else "", recipientAddressId == it.id) },
+                    onSelect = { recipientAddressId = it }
+                )
+            }
+
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = content, onValueChange = { content = it },
@@ -98,6 +137,7 @@ fun ComposeScreen(
                             val draft = container.letters.createDraft(
                                 CreateDraftRequest(
                                     recipientHandle = recipientHandle,
+                                    recipientAddressId = recipientAddressId,
                                     senderAddressId = senderAddressId,
                                     stampId = stampId,
                                     contentType = "text",

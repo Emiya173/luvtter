@@ -7,8 +7,10 @@ import com.letter.server.common.now
 import com.letter.server.config.ApiException
 import com.letter.server.config.NotFoundException
 import com.letter.server.config.ValidationException
+import com.letter.server.db.UserAddresses
 import com.letter.server.db.Users
 import io.ktor.http.*
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.neq
@@ -25,7 +27,8 @@ data class UserRow(
     val displayName: String,
     val avatarUrl: String?,
     val bio: String?,
-    val onlyFriends: Boolean
+    val onlyFriends: Boolean,
+    val currentAddressId: Uuid? = null
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -36,7 +39,20 @@ fun UserRow.toDto() = UserDto(
     displayName = displayName,
     avatarUrl = avatarUrl,
     bio = bio,
-    onlyFriends = onlyFriends
+    onlyFriends = onlyFriends,
+    currentAddressId = currentAddressId?.toString()
+)
+
+@OptIn(ExperimentalUuidApi::class)
+fun UserRow.publicDto() = UserDto(
+    id = id.toString(),
+    handle = handle,
+    handleFinalized = handleFinalized,
+    displayName = displayName,
+    avatarUrl = avatarUrl,
+    bio = bio,
+    onlyFriends = onlyFriends,
+    currentAddressId = null
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -96,5 +112,16 @@ class UserService {
             it[updatedAt] = now()
         }
         Users.selectAll().where { Users.id eq id }.first().let(::userRow).toDto()
+    }
+
+    fun setCurrentAddress(userId: Uuid, addressId: Uuid): UserDto = transaction {
+        val owns = UserAddresses.selectAll()
+            .where { (UserAddresses.id eq addressId) and (UserAddresses.userId eq userId) and (UserAddresses.deletedAt.isNull()) }
+            .firstOrNull() ?: throw NotFoundException(message = "地址不存在")
+        Users.update({ Users.id eq userId }) {
+            it[currentAddressId] = addressId
+            it[updatedAt] = now()
+        }
+        Users.selectAll().where { Users.id eq userId }.first().let(::userRow).toDto()
     }
 }

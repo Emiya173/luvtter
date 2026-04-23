@@ -26,7 +26,7 @@ class ContactService {
     fun list(ownerId: Uuid): List<ContactDto> = transaction {
         Contacts.selectAll().where { Contacts.ownerId eq ownerId }.map { row ->
             val target = Users.selectAll().where { Users.id eq row[Contacts.targetId] }
-                .first().let(::userRow).toDto()
+                .first().let(::userRow).publicDto()
             ContactDto(
                 id = row[Contacts.id].toString(),
                 target = target,
@@ -87,7 +87,7 @@ class ContactService {
     fun lookup(viewerId: Uuid, handle: String): LookupResult = transaction {
         val row = Users.selectAll().where { Users.handle eq handle }.firstOrNull()
             ?: throw NotFoundException(message = "用户不存在")
-        val target = userRow(row).toDto()
+        val target = userRow(row).publicDto()
         val targetId = row[Users.id]
         val blocked = Blocks.selectAll()
             .where { (Blocks.ownerId eq targetId) and (Blocks.targetId eq viewerId) }
@@ -104,7 +104,7 @@ class ContactService {
     fun listBlocks(ownerId: Uuid): List<BlockDto> = transaction {
         Blocks.selectAll().where { Blocks.ownerId eq ownerId }.map { row ->
             val target = Users.selectAll().where { Users.id eq row[Blocks.targetId] }
-                .first().let(::userRow).toDto()
+                .first().let(::userRow).publicDto()
             BlockDto(id = row[Blocks.id].toString(), target = target)
         }
     }
@@ -126,7 +126,7 @@ class ContactService {
             newBlock
         }
         val target = Users.selectAll().where { Users.id eq targetId }.first()
-            .let(::userRow).toDto()
+            .let(::userRow).publicDto()
         BlockDto(id = id.toString(), target = target)
     }
 
@@ -137,7 +137,7 @@ class ContactService {
     private fun loadOne(contactId: Uuid): ContactDto {
         val row = Contacts.selectAll().where { Contacts.id eq contactId }.first()
         val target = Users.selectAll().where { Users.id eq row[Contacts.targetId] }
-            .first().let(::userRow).toDto()
+            .first().let(::userRow).publicDto()
         return ContactDto(
             id = row[Contacts.id].toString(),
             target = target,

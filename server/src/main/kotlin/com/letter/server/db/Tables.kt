@@ -3,6 +3,7 @@ package com.letter.server.db
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.javatime.date
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.jetbrains.exposed.v1.json.jsonb
 
@@ -14,6 +15,7 @@ object Users : Table("users") {
     val avatarUrl = text("avatar_url").nullable()
     val bio = text("bio").nullable()
     val onlyFriends = bool("only_friends").default(false)
+    val currentAddressId = uuid("current_address_id").nullable()
     val createdAt = timestampWithTimeZone("created_at")
     val updatedAt = timestampWithTimeZone("updated_at")
     override val primaryKey = PrimaryKey(id)
@@ -158,8 +160,7 @@ object UserAssets : Table("user_assets") {
 
 object DailyRewards : Table("daily_rewards") {
     val userId = uuid("user_id").references(Users.id)
-    // 用 ISO 字符串(yyyy-MM-dd)避免引入 javatime LocalDate 列类型;DB 仍是 DATE
-    val rewardDate = varchar("reward_date", 10)
+    val rewardDate = date("reward_date")
     val claimedAt = timestampWithTimeZone("claimed_at")
     override val primaryKey = PrimaryKey(userId, rewardDate)
 }
@@ -275,6 +276,7 @@ object Notifications : Table("notifications") {
     val type = varchar("type", 32)
     val letterId = uuid("letter_id").nullable()
     val eventId = uuid("event_id").nullable()
+    val addressId = uuid("address_id").nullable()
     val title = varchar("title", 128)
     val preview = varchar("preview", 256).nullable()
     val readAt = timestampWithTimeZone("read_at").nullable()

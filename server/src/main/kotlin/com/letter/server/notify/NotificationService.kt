@@ -20,7 +20,15 @@ private val nlog = KotlinLogging.logger("com.letter.server.notify")
 @OptIn(ExperimentalUuidApi::class)
 object NotificationService {
 
-    fun emit(userId: Uuid, type: String, title: String, letterId: Uuid? = null, eventId: Uuid? = null, preview: String? = null) {
+    fun emit(
+        userId: Uuid,
+        type: String,
+        title: String,
+        letterId: Uuid? = null,
+        eventId: Uuid? = null,
+        addressId: Uuid? = null,
+        preview: String? = null
+    ) {
         val prefs = UserNotificationPrefs.selectAll().where { UserNotificationPrefs.userId eq userId }.firstOrNull()
         val enabled = when (type) {
             "new_letter" -> prefs?.get(UserNotificationPrefs.newLetter) ?: true
@@ -38,11 +46,12 @@ object NotificationService {
             it[Notifications.type] = type
             it[Notifications.letterId] = letterId
             it[Notifications.eventId] = eventId
+            it[Notifications.addressId] = addressId
             it[Notifications.title] = title
             it[Notifications.preview] = preview
             it[Notifications.createdAt] = now()
         }
-        nlog.info { "notify.emit user=$userId type=$type letter=$letterId" }
+        nlog.info { "notify.emit user=$userId type=$type letter=$letterId address=$addressId" }
     }
 
     fun list(userId: Uuid, limit: Int = 50): List<NotificationDto> =
@@ -51,6 +60,11 @@ object NotificationService {
             .orderBy(Notifications.createdAt to SortOrder.DESC)
             .limit(limit)
             .map { r ->
+                val addrId = r[Notifications.addressId]
+                val addrLabel = addrId?.let { aid ->
+                    UserAddresses.selectAll().where { UserAddresses.id eq aid }
+                        .firstOrNull()?.get(UserAddresses.label)
+                }
                 NotificationDto(
                     id = r[Notifications.id].toString(),
                     type = r[Notifications.type],
@@ -58,6 +72,8 @@ object NotificationService {
                     preview = r[Notifications.preview],
                     letterId = r[Notifications.letterId]?.toString(),
                     eventId = r[Notifications.eventId]?.toString(),
+                    addressId = addrId?.toString(),
+                    addressLabel = addrLabel,
                     readAt = r[Notifications.readAt]?.toString(),
                     createdAt = r[Notifications.createdAt].toString()
                 )

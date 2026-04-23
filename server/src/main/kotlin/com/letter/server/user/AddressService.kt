@@ -7,6 +7,7 @@ import com.letter.server.common.parseId
 import com.letter.server.config.NotFoundException
 import com.letter.server.config.ValidationException
 import com.letter.server.db.UserAddresses
+import com.letter.server.db.Users
 import com.letter.server.db.VirtualAnchors
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -59,6 +60,14 @@ class AddressService {
         if (count == 1L && !req.isDefault) {
             UserAddresses.update({ UserAddresses.id eq id }) { it[isDefault] = true }
         }
+        // 用户第一条地址自动成为"当前位置"
+        val userRow = Users.selectAll().where { Users.id eq userId }.first()
+        if (userRow[Users.currentAddressId] == null) {
+            Users.update({ Users.id eq userId }) {
+                it[currentAddressId] = id
+                it[updatedAt] = ts
+            }
+        }
         load(id)
     }
 
@@ -89,6 +98,34 @@ class AddressService {
             it[isDefault] = false
         }
         if (updated == 0) throw NotFoundException(message = "地址不存在")
+        // 若被删的是"当前位置",回退到默认地址或任意一条
+        val u = Users.selectAll().where { Users.id eq userId }.first()
+        if (u[Users.currentAddressId] == addressId) {
+            val fallback = UserAddresses.selectAll()
+                .where { (UserAddresses.userId eq userId) and (UserAddresses.deletedAt.isNull()) }
+                .orderBy(UserAddresses.isDefault to SortOrder.DESC, UserAddresses.createdAt to SortOrder.ASC)
+                .firstOrNull()?.get(UserAddresses.id)
+            Users.update({ Users.id eq userId }) {
+                it[currentAddressId] = fallback
+                it[updatedAt] = now()
+            }
+        }
+    }
+
+    fun listForRecipient(handle: String): List<RecipientAddressDto> = transaction {
+        val target = Users.selectAll().where { Users.handle eq handle }.firstOrNull()
+            ?: throw NotFoundException(message = "用户不存在")
+        UserAddresses.selectAll()
+            .where { (UserAddresses.userId eq target[Users.id]) and (UserAddresses.deletedAt.isNull()) }
+            .orderBy(UserAddresses.isDefault to SortOrder.DESC, UserAddresses.createdAt to SortOrder.ASC)
+            .map {
+                RecipientAddressDto(
+                    id = it[UserAddresses.id].toString(),
+                    label = it[UserAddresses.label],
+                    type = it[UserAddresses.type],
+                    isDefault = it[UserAddresses.isDefault]
+                )
+            }
     }
 
     fun setDefault(userId: Uuid, addressId: Uuid): AddressDto = transaction {
