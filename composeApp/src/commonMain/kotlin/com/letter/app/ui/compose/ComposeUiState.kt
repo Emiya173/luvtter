@@ -1,0 +1,43 @@
+package com.letter.app.ui.compose
+
+import com.letter.contract.dto.AddressDto
+import com.letter.contract.dto.ContactDto
+import com.letter.contract.dto.MyAssetsDto
+import com.letter.contract.dto.RecipientAddressDto
+import com.letter.contract.dto.StampDto
+import com.letter.contract.dto.StationeryDto
+
+data class ComposeUiState(
+    val recipientHandle: String = "",
+    val recipientName: String? = null,
+    val recipientAddresses: List<RecipientAddressDto> = emptyList(),
+    val recipientAddressId: String? = null,
+    val lookupBusy: Boolean = false,
+
+    val content: String = "",
+    val stamps: List<StampDto> = emptyList(),
+    val stampId: String? = null,
+    val stationeries: List<StationeryDto> = emptyList(),
+    val stationeryId: String? = null,
+    val fontCode: String? = null,
+
+    val assets: MyAssetsDto? = null,
+    val senderAddresses: List<AddressDto> = emptyList(),
+    val senderAddressId: String? = null,
+    val contacts: List<ContactDto> = emptyList(),
+
+    val draftId: String? = null,
+    val sealedUntil: String? = null,
+    val loading: Boolean = false,
+    val status: String? = null
+) {
+    val canSaveDraft: Boolean get() = !loading && recipientHandle.isNotBlank() && content.isNotBlank()
+    val canSend: Boolean get() = canSaveDraft && stampId != null
+}
+
+internal val FONT_OPTIONS: List<Pair<String?, String>> = listOf(
+    null to "默认",
+    "kaiti" to "楷体",
+    "songti" to "宋体",
+    "handwriting-1" to "手写体"
+)

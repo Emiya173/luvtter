@@ -1,4 +1,4 @@
-package com.letter.app.ui
+package com.letter.app.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,79 +9,33 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letter.contract.dto.AddressDto
-import com.letter.contract.dto.FinalizeHandleRequest
 import com.letter.contract.dto.FolderDto
 import com.letter.contract.dto.LetterSummaryDto
 import com.letter.contract.dto.NotificationDto
-import com.letter.shared.AppContainer
-import kotlinx.coroutines.launch
-
-private enum class Tab(val label: String) { Inbox("收件箱"), Outbox("发件箱"), Favorites("收藏"), Folders("分类") }
+import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    container: AppContainer,
     onCompose: () -> Unit,
     onAddresses: () -> Unit,
     onContacts: () -> Unit,
     onOpenLetter: (String) -> Unit,
-    onLogout: () -> Unit
+    onEditDraft: (String) -> Unit,
+    onLogout: () -> Unit,
+    vm: HomeViewModel = koinViewModel()
 ) {
-    val scope = rememberCoroutineScope()
-    var tab by remember { mutableStateOf(Tab.Inbox) }
-    var letters by remember { mutableStateOf<List<LetterSummaryDto>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var unread by remember { mutableStateOf(0) }
-    var reward by remember { mutableStateOf<String?>(null) }
-    var showHidden by remember { mutableStateOf(false) }
-
-    var addresses by remember { mutableStateOf<List<AddressDto>>(emptyList()) }
-    var folders by remember { mutableStateOf<List<FolderDto>>(emptyList()) }
-    var selectedFolderId by remember { mutableStateOf<String?>(null) }
-    var notifications by remember { mutableStateOf<List<NotificationDto>>(emptyList()) }
+    val state by vm.state.collectAsStateWithLifecycle()
+    val user = vm.session.collectAsStateWithLifecycle().value?.user
+    val currentAddress = remember(user, state.addresses) {
+        state.addresses.firstOrNull { it.id == user?.currentAddressId }
+    }
     var showNotifications by remember { mutableStateOf(false) }
     var showSwitchLocation by remember { mutableStateOf(false) }
     var showFinalizeHandle by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
-
-    val user = container.tokens.session.collectAsState().value?.user
-    val currentAddress = remember(user, addresses) {
-        addresses.firstOrNull { it.id == user?.currentAddressId }
-    }
-
-    suspend fun reloadAll() {
-        runCatching { addresses = container.addresses.list() }
-        runCatching { folders = container.folders.list() }
-        runCatching { notifications = container.notifications.list() }
-        runCatching { unread = container.notifications.unreadCount() }
-    }
-
-    LaunchedEffect(Unit) {
-        reloadAll()
-        runCatching {
-            val r = container.dailyReward.claim(java.util.TimeZone.getDefault().id)
-            if (r.claimed) reward = "今日奖励已发放"
-        }
-    }
-
-    suspend fun reload() {
-        loading = true; error = null
-        try {
-            letters = when (tab) {
-                Tab.Inbox -> container.letters.inbox(hidden = showHidden)
-                Tab.Outbox -> container.letters.outbox(hidden = showHidden)
-                Tab.Favorites -> container.letters.favorites()
-                Tab.Folders -> selectedFolderId?.let { container.letters.byFolder(it) } ?: emptyList()
-            }
-        } catch (e: Exception) {
-            error = e.message
-        } finally { loading = false }
-    }
-
-    LaunchedEffect(tab, showHidden, selectedFolderId, user?.currentAddressId) { reload() }
 
     Scaffold(
         topBar = {
@@ -98,20 +52,16 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    BadgedBox(badge = { if (unread > 0) Badge { Text("$unread") } }) {
+                    BadgedBox(badge = { if (state.unread > 0) Badge { Text("${state.unread}") } }) {
                         IconButton(onClick = {
-                            scope.launch {
-                                runCatching { notifications = container.notifications.list() }
-                                showNotifications = true
-                            }
+                            vm.openNotifications()
+                            showNotifications = true
                         }) { Text("铃") }
                     }
                     IconButton(onClick = { showSearch = true }) { Text("搜", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onContacts) { Text("人", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onAddresses) { Text("址", style = MaterialTheme.typography.labelLarge) }
-                    IconButton(onClick = {
-                        scope.launch { reload(); reloadAll() }
-                    }) { Text("⟳") }
+                    IconButton(onClick = vm::refreshAll) { Text("⟳") }
                     TextButton(onClick = onLogout) { Text("退出") }
                 }
             )
@@ -121,7 +71,6 @@ fun HomeScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // 当前位置 / handle 提示条
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -146,114 +95,73 @@ fun HomeScreen(
                 }
             }
 
-            PrimaryTabRow(selectedTabIndex = tab.ordinal) {
-                Tab.entries.forEach { t ->
-                    Tab(selected = tab == t, onClick = { tab = t }, text = { Text(t.label) })
+            PrimaryTabRow(selectedTabIndex = state.tab.ordinal) {
+                HomeTab.entries.forEach { t ->
+                    Tab(selected = state.tab == t, onClick = { vm.selectTab(t) }, text = { Text(t.label) })
                 }
             }
-            if (tab == Tab.Inbox || tab == Tab.Outbox) {
+            if (state.tab == HomeTab.Inbox || state.tab == HomeTab.Outbox) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilterChip(
-                        selected = showHidden,
-                        onClick = { showHidden = !showHidden },
-                        label = { Text(if (showHidden) "查看已隐藏" else "正常视图") }
+                        selected = state.showHidden,
+                        onClick = vm::toggleShowHidden,
+                        label = { Text(if (state.showHidden) "查看已隐藏" else "正常视图") }
                     )
                     Spacer(Modifier.weight(1f))
-                    if (showHidden) {
+                    if (state.showHidden) {
                         Text("已隐藏的信件仍存在于对方的箱子中", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
-            if (tab == Tab.Folders) {
+            if (state.tab == HomeTab.Folders) {
                 FolderBar(
-                    folders = folders,
-                    selectedId = selectedFolderId,
-                    onSelect = { selectedFolderId = it },
-                    onCreate = { name ->
-                        scope.launch {
-                            runCatching { container.folders.create(com.letter.contract.dto.CreateFolderRequest(name)) }
-                                .onSuccess { folders = runCatching { container.folders.list() }.getOrDefault(folders) }
-                                .onFailure { error = it.message }
-                        }
-                    },
-                    onDelete = { fid ->
-                        scope.launch {
-                            runCatching { container.folders.delete(fid) }
-                                .onSuccess {
-                                    if (selectedFolderId == fid) selectedFolderId = null
-                                    folders = runCatching { container.folders.list() }.getOrDefault(folders)
-                                }
-                                .onFailure { error = it.message }
-                        }
-                    }
+                    folders = state.folders,
+                    selectedId = state.selectedFolderId,
+                    onSelect = vm::selectFolder,
+                    onCreate = vm::createFolder,
+                    onDelete = vm::deleteFolder
                 )
             }
-            if (loading) {
+            if (state.loading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
-            error?.let {
+            state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
             }
-            reward?.let {
+            state.reward?.let {
                 Surface(color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
                     Text(it, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            if (!loading && letters.isEmpty()) {
+            if (!state.loading && state.letters.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     val hint = when {
-                        tab == Tab.Favorites -> "还没有收藏的信件"
-                        tab == Tab.Folders && folders.isEmpty() -> "还没有分类，先创建一个"
-                        tab == Tab.Folders && selectedFolderId == null -> "选择一个分类查看信件"
-                        tab == Tab.Folders -> "该分类暂无信件"
-                        showHidden -> "没有已隐藏的信件"
-                        tab == Tab.Inbox && currentAddress != null -> "「${currentAddress.label}」当前没有信件"
+                        state.tab == HomeTab.Favorites -> "还没有收藏的信件"
+                        state.tab == HomeTab.Folders && state.folders.isEmpty() -> "还没有分类，先创建一个"
+                        state.tab == HomeTab.Folders && state.selectedFolderId == null -> "选择一个分类查看信件"
+                        state.tab == HomeTab.Folders -> "该分类暂无信件"
+                        state.showHidden -> "没有已隐藏的信件"
+                        state.tab == HomeTab.Inbox && currentAddress != null -> "「${currentAddress.label}」当前没有信件"
                         else -> "还没有信件"
                     }
                     Text(hint, style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(letters, key = { it.id }) { l ->
-                        val mine = when (tab) {
-                            Tab.Outbox -> true
-                            Tab.Inbox -> false
-                            else -> l.sender?.id == user?.id
-                        }
+                    items(state.letters, key = { it.id }) { l ->
+                        val mine = vm.letterOwnedByMe(l)
+                        val isDraft = state.tab == HomeTab.Drafts
                         LetterRow(
                             l,
                             mine = mine,
-                            onClick = { onOpenLetter(l.id) },
-                            onExpedite = if (mine && l.status == "in_transit") {
-                                {
-                                    scope.launch {
-                                        runCatching { container.letters.expedite(l.id, 5) }
-                                            .onSuccess { reload() }
-                                            .onFailure { error = it.message }
-                                    }
-                                }
-                            } else null,
-                            onHide = if (!showHidden && !l.hidden) {
-                                {
-                                    scope.launch {
-                                        runCatching { container.letters.hide(l.id) }
-                                            .onSuccess { reload() }
-                                            .onFailure { error = it.message }
-                                    }
-                                }
-                            } else null,
-                            onUnhide = if (showHidden || l.hidden) {
-                                {
-                                    scope.launch {
-                                        runCatching { container.letters.unhide(l.id) }
-                                            .onSuccess { reload() }
-                                            .onFailure { error = it.message }
-                                    }
-                                }
-                            } else null
+                            onClick = { if (isDraft) onEditDraft(l.id) else onOpenLetter(l.id) },
+                            onDeleteDraft = if (isDraft) { { vm.deleteDraft(l.id) } } else null,
+                            onExpedite = if (mine && l.status == "in_transit") { { vm.expedite(l.id) } } else null,
+                            onHide = if (!state.showHidden && !l.hidden) { { vm.hide(l.id) } } else null,
+                            onUnhide = if (state.showHidden || l.hidden) { { vm.unhide(l.id) } } else null
                         )
                         HorizontalDivider()
                     }
@@ -264,58 +172,43 @@ fun HomeScreen(
 
     if (showNotifications) {
         NotificationsDialog(
-            notifications = notifications,
+            notifications = state.notifications,
             onDismiss = { showNotifications = false },
-            onMarkAllRead = {
-                scope.launch {
-                    runCatching { container.notifications.markAllRead() }
-                    notifications = runCatching { container.notifications.list() }.getOrDefault(emptyList())
-                    unread = 0
-                }
-            },
+            onMarkAllRead = vm::markAllNotificationsRead,
             onSwitchToAddress = { addressId ->
-                scope.launch {
-                    runCatching {
-                        val u = container.me.setCurrentAddress(addressId)
-                        container.tokens.updateUser(u)
-                    }
-                    showNotifications = false
-                }
+                vm.switchCurrentAddress(addressId)
+                showNotifications = false
             }
         )
     }
 
     if (showSwitchLocation) {
         SwitchLocationDialog(
-            addresses = addresses,
+            addresses = state.addresses,
             currentId = user?.currentAddressId,
             onDismiss = { showSwitchLocation = false },
             onPick = { addressId ->
-                scope.launch {
-                    runCatching {
-                        val u = container.me.setCurrentAddress(addressId)
-                        container.tokens.updateUser(u)
-                    }.onFailure { error = it.message }
-                    showSwitchLocation = false
-                }
+                vm.switchCurrentAddress(addressId)
+                showSwitchLocation = false
             }
         )
     }
 
     if (showFinalizeHandle) {
         FinalizeHandleDialog(
-            container = container,
             onDismiss = { showFinalizeHandle = false },
-            onDone = { newUser ->
-                container.tokens.updateUser(newUser)
-                showFinalizeHandle = false
+            onSubmit = { input, onError ->
+                vm.finalizeHandle(
+                    value = input,
+                    onDone = { showFinalizeHandle = false },
+                    onError = onError
+                )
             }
         )
     }
 
     if (showSearch) {
         SearchDialog(
-            container = container,
             onDismiss = { showSearch = false },
             onOpen = { id -> showSearch = false; onOpenLetter(id) }
         )
@@ -325,16 +218,11 @@ fun HomeScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchDialog(
-    container: AppContainer,
     onDismiss: () -> Unit,
-    onOpen: (String) -> Unit
+    onOpen: (String) -> Unit,
+    vm: SearchViewModel = koinViewModel()
 ) {
-    val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<LetterSummaryDto>>(emptyList()) }
-    var busy by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf<String?>(null) }
-
+    val state by vm.state.collectAsStateWithLifecycle()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("搜索信件") },
@@ -342,32 +230,25 @@ private fun SearchDialog(
             Column(modifier = Modifier.heightIn(max = 420.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
+                        value = state.query,
+                        onValueChange = vm::onQueryChange,
                         label = { Text("关键词") },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
                     Spacer(Modifier.width(8.dp))
                     Button(
-                        enabled = !busy && query.isNotBlank(),
-                        onClick = {
-                            busy = true; status = null
-                            scope.launch {
-                                try { results = container.letters.search(query) }
-                                catch (e: Exception) { status = e.message }
-                                finally { busy = false }
-                            }
-                        }
-                    ) { Text(if (busy) "搜索中" else "搜索") }
+                        enabled = !state.busy && state.query.isNotBlank(),
+                        onClick = vm::search
+                    ) { Text(if (state.busy) "搜索中" else "搜索") }
                 }
-                status?.let { Spacer(Modifier.height(6.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+                state.error?.let { Spacer(Modifier.height(6.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
                 Spacer(Modifier.height(8.dp))
-                if (results.isEmpty() && !busy && query.isNotBlank() && status == null) {
+                if (state.results.isEmpty() && !state.busy && state.query.isNotBlank() && state.error == null) {
                     Text("无匹配", style = MaterialTheme.typography.bodySmall)
                 }
                 LazyColumn {
-                    items(results, key = { it.id }) { l ->
+                    items(state.results, key = { it.id }) { l ->
                         ListItem(
                             headlineContent = {
                                 val who = "${l.sender?.displayName ?: "—"} → ${l.recipient?.displayName ?: "—"}"
@@ -441,7 +322,8 @@ private fun LetterRow(
     onClick: () -> Unit,
     onExpedite: (() -> Unit)? = null,
     onHide: (() -> Unit)? = null,
-    onUnhide: (() -> Unit)? = null
+    onUnhide: (() -> Unit)? = null,
+    onDeleteDraft: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp)
@@ -472,18 +354,13 @@ private fun LetterRow(
         time?.let {
             Text(it.take(19).replace('T', ' '), style = MaterialTheme.typography.labelSmall)
         }
-        if (onExpedite != null || onHide != null || onUnhide != null) {
+        if (onExpedite != null || onHide != null || onUnhide != null || onDeleteDraft != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
-                if (onExpedite != null) {
-                    TextButton(onClick = onExpedite) { Text("加速到达") }
-                }
-                if (onHide != null) {
-                    TextButton(onClick = onHide) { Text("隐藏") }
-                }
-                if (onUnhide != null) {
-                    TextButton(onClick = onUnhide) { Text("恢复") }
-                }
+                if (onExpedite != null) TextButton(onClick = onExpedite) { Text("加速到达") }
+                if (onHide != null) TextButton(onClick = onHide) { Text("隐藏") }
+                if (onUnhide != null) TextButton(onClick = onUnhide) { Text("恢复") }
+                if (onDeleteDraft != null) TextButton(onClick = onDeleteDraft) { Text("删除草稿") }
             }
         }
     }
@@ -573,11 +450,9 @@ private fun SwitchLocationDialog(
 
 @Composable
 private fun FinalizeHandleDialog(
-    container: AppContainer,
     onDismiss: () -> Unit,
-    onDone: (com.letter.contract.dto.UserDto) -> Unit
+    onSubmit: (input: String, onError: (String) -> Unit) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
     var input by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
@@ -602,11 +477,9 @@ private fun FinalizeHandleDialog(
                 enabled = !loading && input.isNotBlank(),
                 onClick = {
                     loading = true; status = null
-                    scope.launch {
-                        try {
-                            val u = container.me.finalizeHandle(FinalizeHandleRequest(input))
-                            onDone(u)
-                        } catch (e: Exception) { status = e.message } finally { loading = false }
+                    onSubmit(input) { err ->
+                        status = err
+                        loading = false
                     }
                 }
             ) { Text(if (loading) "提交中..." else "确认") }

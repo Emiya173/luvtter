@@ -1,61 +1,93 @@
 package com.letter.app
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.*
-import com.letter.app.ui.*
-import com.letter.shared.AppContainer
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
+import com.letter.app.di.appModule
+import com.letter.app.navigation.AddressesRoute
+import com.letter.app.navigation.ComposeRoute
+import com.letter.app.navigation.ContactsRoute
+import com.letter.app.navigation.HomeRoute
+import com.letter.app.navigation.LetterDetailRoute
+import com.letter.app.navigation.LoginRoute
+import com.letter.app.navigation.RegisterRoute
+import com.letter.app.ui.addresses.AddressesScreen
+import com.letter.app.ui.auth.LoginScreen
+import com.letter.app.ui.auth.RegisterScreen
+import com.letter.app.ui.compose.ComposeScreen
+import com.letter.app.ui.contacts.ContactsScreen
+import com.letter.app.ui.home.HomeScreen
+import com.letter.app.ui.letter.LetterDetailScreen
+import com.letter.shared.auth.TokenStore
+import org.koin.compose.KoinApplication
+import org.koin.compose.koinInject
 
 expect val apiBaseUrl: String
 
 @Composable
 fun App() {
-    MaterialTheme {
-        val container = remember { AppContainer(apiBaseUrl) }
-        var screen by remember { mutableStateOf<Screen>(Screen.Login) }
+    KoinApplication(application = {
+        modules(appModule(apiBaseUrl))
+    }) {
+        MaterialTheme {
+            val nav = rememberNavController()
+            val tokens: TokenStore = koinInject()
 
-        when (val s = screen) {
-            Screen.Login -> LoginScreen(
-                container = container,
-                onSuccess = { screen = Screen.Home },
-                onGoRegister = { screen = Screen.Register }
-            )
-            Screen.Register -> RegisterScreen(
-                container = container,
-                onSuccess = { screen = Screen.Home },
-                onGoLogin = { screen = Screen.Login }
-            )
-            Screen.Home -> HomeScreen(
-                container = container,
-                onCompose = { screen = Screen.Compose() },
-                onAddresses = { screen = Screen.Addresses },
-                onContacts = { screen = Screen.Contacts },
-                onOpenLetter = { screen = Screen.LetterDetail(it) },
-                onLogout = {
-                    container.tokens.clear()
-                    screen = Screen.Login
+            NavHost(navController = nav, startDestination = LoginRoute) {
+                composable<LoginRoute> {
+                    LoginScreen(
+                        onSuccess = {
+                            nav.navigate(HomeRoute) { popUpTo(LoginRoute) { inclusive = true } }
+                        },
+                        onGoRegister = { nav.navigate(RegisterRoute) }
+                    )
                 }
-            )
-            is Screen.Compose -> ComposeScreen(
-                container = container,
-                replyToLetterId = s.replyToLetterId,
-                prefillRecipientHandle = s.recipientHandle,
-                onSent = { screen = Screen.Home },
-                onCancel = { screen = Screen.Home }
-            )
-            is Screen.LetterDetail -> LetterDetailScreen(
-                container = container,
-                letterId = s.id,
-                onReply = { handle -> screen = Screen.Compose(replyToLetterId = s.id, recipientHandle = handle) },
-                onBack = { screen = Screen.Home }
-            )
-            Screen.Addresses -> AddressesScreen(
-                container = container,
-                onBack = { screen = Screen.Home }
-            )
-            Screen.Contacts -> ContactsScreen(
-                container = container,
-                onBack = { screen = Screen.Home }
-            )
+                composable<RegisterRoute> {
+                    RegisterScreen(
+                        onSuccess = {
+                            nav.navigate(HomeRoute) { popUpTo(LoginRoute) { inclusive = true } }
+                        },
+                        onGoLogin = { nav.popBackStack() }
+                    )
+                }
+                composable<HomeRoute> {
+                    HomeScreen(
+                        onCompose = { nav.navigate(ComposeRoute()) },
+                        onAddresses = { nav.navigate(AddressesRoute) },
+                        onContacts = { nav.navigate(ContactsRoute) },
+                        onOpenLetter = { id -> nav.navigate(LetterDetailRoute(id)) },
+                        onEditDraft = { id -> nav.navigate(ComposeRoute(editDraftId = id)) },
+                        onLogout = {
+                            tokens.clear()
+                            nav.navigate(LoginRoute) { popUpTo(0) { inclusive = true } }
+                        }
+                    )
+                }
+                composable<ComposeRoute> {
+                    ComposeScreen(
+                        onSent = { nav.popBackStack(HomeRoute, inclusive = false) },
+                        onCancel = { nav.popBackStack() }
+                    )
+                }
+                composable<LetterDetailRoute> { entry ->
+                    val route: LetterDetailRoute = entry.toRoute()
+                    LetterDetailScreen(
+                        onReply = { handle ->
+                            nav.navigate(ComposeRoute(replyToLetterId = route.id, recipientHandle = handle))
+                        },
+                        onBack = { nav.popBackStack() }
+                    )
+                }
+                composable<AddressesRoute> {
+                    AddressesScreen(onBack = { nav.popBackStack() })
+                }
+                composable<ContactsRoute> {
+                    ContactsScreen(onBack = { nav.popBackStack() })
+                }
+            }
         }
     }
 }
