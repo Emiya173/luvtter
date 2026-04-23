@@ -12,6 +12,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.letter.contract.dto.FolderDto
 import com.letter.contract.dto.LetterDetailDto
 import com.letter.contract.dto.LetterEventDto
 import com.letter.shared.AppContainer
@@ -28,13 +29,16 @@ fun LetterDetailScreen(
     val scope = rememberCoroutineScope()
     var detail by remember { mutableStateOf<LetterDetailDto?>(null) }
     var events by remember { mutableStateOf<List<LetterEventDto>>(emptyList()) }
+    var folders by remember { mutableStateOf<List<FolderDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showFolderPicker by remember { mutableStateOf(false) }
     val viewerId = container.tokens.session.collectAsState().value?.user?.id
 
     suspend fun reload() {
         try {
             detail = container.letters.detail(letterId)
             events = runCatching { container.letters.events(letterId) }.getOrDefault(emptyList())
+            folders = runCatching { container.folders.list() }.getOrDefault(emptyList())
             if (detail?.summary?.status == "delivered") {
                 runCatching { container.letters.markRead(letterId) }
             }
@@ -129,6 +133,8 @@ fun LetterDetailScreen(
                     }
                 }) { Text(if (s.isFavorite) "取消收藏" else "收藏") }
                 Spacer(Modifier.width(8.dp))
+                OutlinedButton(onClick = { showFolderPicker = true }) { Text("移到分类") }
+                Spacer(Modifier.width(8.dp))
                 if (s.hidden) {
                     OutlinedButton(onClick = {
                         scope.launch {
@@ -148,5 +154,37 @@ fun LetterDetailScreen(
                 }
             }
         }
+    }
+
+    if (showFolderPicker) {
+        AlertDialog(
+            onDismissRequest = { showFolderPicker = false },
+            title = { Text("移到分类") },
+            text = {
+                Column {
+                    if (folders.isEmpty()) {
+                        Text("还没有分类，请先到「分类」标签创建。", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        TextButton(onClick = {
+                            scope.launch {
+                                runCatching { container.folders.assign(letterId, null) }
+                                    .onSuccess { showFolderPicker = false; reload() }
+                                    .onFailure { error = it.message }
+                            }
+                        }) { Text("（移除分类）") }
+                        folders.forEach { f ->
+                            TextButton(onClick = {
+                                scope.launch {
+                                    runCatching { container.folders.assign(letterId, f.id) }
+                                        .onSuccess { showFolderPicker = false; reload() }
+                                        .onFailure { error = it.message }
+                                }
+                            }) { Text(f.name) }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showFolderPicker = false }) { Text("关闭") } }
+        )
     }
 }

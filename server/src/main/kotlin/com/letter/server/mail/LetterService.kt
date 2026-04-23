@@ -400,6 +400,31 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
         }
     }
 
+    fun favorites(userId: Uuid, limit: Int = 50): List<LetterSummaryDto> = transaction {
+        val orderedIds = Favorites.selectAll()
+            .where { Favorites.userId eq userId }
+            .orderBy(Favorites.createdAt to SortOrder.DESC)
+            .limit(limit)
+            .map { it[Favorites.letterId] }
+        if (orderedIds.isEmpty()) return@transaction emptyList()
+        val byId = Letters.selectAll()
+            .where { Letters.id inList orderedIds }
+            .associateBy { it[Letters.id] }
+        orderedIds.mapNotNull { byId[it] }.map { buildSummary(it, userId) }
+    }
+
+    fun byFolder(userId: Uuid, folderId: Uuid, limit: Int = 50): List<LetterSummaryDto> = transaction {
+        val ids = LetterFolders.selectAll()
+            .where { (LetterFolders.userId eq userId) and (LetterFolders.folderId eq folderId) }
+            .limit(limit)
+            .map { it[LetterFolders.letterId] }
+        if (ids.isEmpty()) return@transaction emptyList()
+        Letters.selectAll()
+            .where { Letters.id inList ids }
+            .orderBy(Letters.createdAt to SortOrder.DESC)
+            .map { buildSummary(it, userId) }
+    }
+
     fun events(viewerId: Uuid, id: Uuid): List<LetterEventDto> = transaction {
         val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
             ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")

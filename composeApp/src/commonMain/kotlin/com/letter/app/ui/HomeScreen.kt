@@ -11,12 +11,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.letter.contract.dto.AddressDto
 import com.letter.contract.dto.FinalizeHandleRequest
+import com.letter.contract.dto.FolderDto
 import com.letter.contract.dto.LetterSummaryDto
 import com.letter.contract.dto.NotificationDto
 import com.letter.shared.AppContainer
 import kotlinx.coroutines.launch
 
-private enum class Tab(val label: String) { Inbox("收件箱"), Outbox("发件箱") }
+private enum class Tab(val label: String) { Inbox("收件箱"), Outbox("发件箱"), Favorites("收藏"), Folders("分类") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +39,8 @@ fun HomeScreen(
     var showHidden by remember { mutableStateOf(false) }
 
     var addresses by remember { mutableStateOf<List<AddressDto>>(emptyList()) }
+    var folders by remember { mutableStateOf<List<FolderDto>>(emptyList()) }
+    var selectedFolderId by remember { mutableStateOf<String?>(null) }
     var notifications by remember { mutableStateOf<List<NotificationDto>>(emptyList()) }
     var showNotifications by remember { mutableStateOf(false) }
     var showSwitchLocation by remember { mutableStateOf(false) }
@@ -50,6 +53,7 @@ fun HomeScreen(
 
     suspend fun reloadAll() {
         runCatching { addresses = container.addresses.list() }
+        runCatching { folders = container.folders.list() }
         runCatching { notifications = container.notifications.list() }
         runCatching { unread = container.notifications.unreadCount() }
     }
@@ -68,13 +72,15 @@ fun HomeScreen(
             letters = when (tab) {
                 Tab.Inbox -> container.letters.inbox(hidden = showHidden)
                 Tab.Outbox -> container.letters.outbox(hidden = showHidden)
+                Tab.Favorites -> container.letters.favorites()
+                Tab.Folders -> selectedFolderId?.let { container.letters.byFolder(it) } ?: emptyList()
             }
         } catch (e: Exception) {
             error = e.message
         } finally { loading = false }
     }
 
-    LaunchedEffect(tab, showHidden, user?.currentAddressId) { reload() }
+    LaunchedEffect(tab, showHidden, selectedFolderId, user?.currentAddressId) { reload() }
 
     Scaffold(
         topBar = {
@@ -143,19 +149,45 @@ fun HomeScreen(
                     Tab(selected = tab == t, onClick = { tab = t }, text = { Text(t.label) })
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilterChip(
-                    selected = showHidden,
-                    onClick = { showHidden = !showHidden },
-                    label = { Text(if (showHidden) "查看已隐藏" else "正常视图") }
-                )
-                Spacer(Modifier.weight(1f))
-                if (showHidden) {
-                    Text("已隐藏的信件仍存在于对方的箱子中", style = MaterialTheme.typography.labelSmall)
+            if (tab == Tab.Inbox || tab == Tab.Outbox) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = showHidden,
+                        onClick = { showHidden = !showHidden },
+                        label = { Text(if (showHidden) "查看已隐藏" else "正常视图") }
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (showHidden) {
+                        Text("已隐藏的信件仍存在于对方的箱子中", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
+            }
+            if (tab == Tab.Folders) {
+                FolderBar(
+                    folders = folders,
+                    selectedId = selectedFolderId,
+                    onSelect = { selectedFolderId = it },
+                    onCreate = { name ->
+                        scope.launch {
+                            runCatching { container.folders.create(com.letter.contract.dto.CreateFolderRequest(name)) }
+                                .onSuccess { folders = runCatching { container.folders.list() }.getOrDefault(folders) }
+                                .onFailure { error = it.message }
+                        }
+                    },
+                    onDelete = { fid ->
+                        scope.launch {
+                            runCatching { container.folders.delete(fid) }
+                                .onSuccess {
+                                    if (selectedFolderId == fid) selectedFolderId = null
+                                    folders = runCatching { container.folders.list() }.getOrDefault(folders)
+                                }
+                                .onFailure { error = it.message }
+                        }
+                    }
+                )
             }
             if (loading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -171,6 +203,10 @@ fun HomeScreen(
             if (!loading && letters.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     val hint = when {
+                        tab == Tab.Favorites -> "还没有收藏的信件"
+                        tab == Tab.Folders && folders.isEmpty() -> "还没有分类，先创建一个"
+                        tab == Tab.Folders && selectedFolderId == null -> "选择一个分类查看信件"
+                        tab == Tab.Folders -> "该分类暂无信件"
                         showHidden -> "没有已隐藏的信件"
                         tab == Tab.Inbox && currentAddress != null -> "「${currentAddress.label}」当前没有信件"
                         else -> "还没有信件"
@@ -180,11 +216,16 @@ fun HomeScreen(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(letters, key = { it.id }) { l ->
+                        val mine = when (tab) {
+                            Tab.Outbox -> true
+                            Tab.Inbox -> false
+                            else -> l.sender?.id == user?.id
+                        }
                         LetterRow(
                             l,
-                            mine = tab == Tab.Outbox,
+                            mine = mine,
                             onClick = { onOpenLetter(l.id) },
-                            onExpedite = if (tab == Tab.Outbox && l.status == "in_transit") {
+                            onExpedite = if (mine && l.status == "in_transit") {
                                 {
                                     scope.launch {
                                         runCatching { container.letters.expedite(l.id, 5) }
@@ -271,6 +312,55 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FolderBar(
+    folders: List<FolderDto>,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+    onCreate: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    var showNew by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            folders.forEach { f ->
+                FilterChip(
+                    selected = selectedId == f.id,
+                    onClick = { onSelect(if (selectedId == f.id) null else f.id) },
+                    label = { Text(f.name) },
+                    modifier = Modifier.padding(end = 6.dp)
+                )
+            }
+            TextButton(onClick = { showNew = true }) { Text("+ 新建") }
+            Spacer(Modifier.weight(1f))
+            if (selectedId != null) {
+                TextButton(onClick = { onDelete(selectedId) }) { Text("删除分类") }
+            }
+        }
+    }
+    if (showNew) {
+        AlertDialog(
+            onDismissRequest = { showNew = false; name = "" },
+            title = { Text("新建分类") },
+            text = {
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it.trim() },
+                    label = { Text("名称") }, singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = name.isNotBlank(),
+                    onClick = { onCreate(name); name = ""; showNew = false }
+                ) { Text("创建") }
+            },
+            dismissButton = { TextButton(onClick = { showNew = false; name = "" }) { Text("取消") } }
+        )
+    }
+}
+
 @Composable
 private fun LetterRow(
     l: LetterSummaryDto,
@@ -286,6 +376,10 @@ private fun LetterRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             val who = if (mine) (l.recipient?.displayName ?: "未知收件人") else (l.sender?.displayName ?: "未知寄件人")
             Text(who, style = MaterialTheme.typography.titleMedium)
+            if (l.isFavorite) {
+                Spacer(Modifier.width(6.dp))
+                Text("★", style = MaterialTheme.typography.titleMedium)
+            }
             Spacer(Modifier.weight(1f))
             AssistChip(onClick = {}, label = { Text(statusLabel(l.status, l.transitStage)) })
         }

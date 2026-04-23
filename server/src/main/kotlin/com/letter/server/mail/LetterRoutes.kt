@@ -103,5 +103,16 @@ fun Route.letterRoutes(service: LetterService) {
             val hidden = call.request.queryParameters["hidden"]?.toBooleanStrictOrNull() ?: false
             call.respond(ApiResponse(service.outbox(uid, limit, hidden)))
         }
+        get("/api/v1/me/favorites") {
+            val uid = call.principal<JWTPrincipal>()!!.userId()
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
+            call.respond(ApiResponse(service.favorites(uid, limit)))
+        }
+        get("/api/v1/folders/{id}/letters") {
+            val uid = call.principal<JWTPrincipal>()!!.userId()
+            val fid = parseId(call.parameters["id"]!!)
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
+            call.respond(ApiResponse(service.byFolder(uid, fid, limit)))
+        }
     }
 }
