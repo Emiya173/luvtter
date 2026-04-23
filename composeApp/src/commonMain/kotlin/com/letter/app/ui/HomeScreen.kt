@@ -35,6 +35,7 @@ fun HomeScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var unread by remember { mutableStateOf(0) }
     var reward by remember { mutableStateOf<String?>(null) }
+    var showHidden by remember { mutableStateOf(false) }
 
     var addresses by remember { mutableStateOf<List<AddressDto>>(emptyList()) }
     var notifications by remember { mutableStateOf<List<NotificationDto>>(emptyList()) }
@@ -65,15 +66,15 @@ fun HomeScreen(
         loading = true; error = null
         try {
             letters = when (tab) {
-                Tab.Inbox -> container.letters.inbox()
-                Tab.Outbox -> container.letters.outbox()
+                Tab.Inbox -> container.letters.inbox(hidden = showHidden)
+                Tab.Outbox -> container.letters.outbox(hidden = showHidden)
             }
         } catch (e: Exception) {
             error = e.message
         } finally { loading = false }
     }
 
-    LaunchedEffect(tab, user?.currentAddressId) { reload() }
+    LaunchedEffect(tab, showHidden, user?.currentAddressId) { reload() }
 
     Scaffold(
         topBar = {
@@ -142,6 +143,20 @@ fun HomeScreen(
                     Tab(selected = tab == t, onClick = { tab = t }, text = { Text(t.label) })
                 }
             }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilterChip(
+                    selected = showHidden,
+                    onClick = { showHidden = !showHidden },
+                    label = { Text(if (showHidden) "查看已隐藏" else "正常视图") }
+                )
+                Spacer(Modifier.weight(1f))
+                if (showHidden) {
+                    Text("已隐藏的信件仍存在于对方的箱子中", style = MaterialTheme.typography.labelSmall)
+                }
+            }
             if (loading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
@@ -155,15 +170,48 @@ fun HomeScreen(
             }
             if (!loading && letters.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    val hint = if (tab == Tab.Inbox && currentAddress != null)
-                        "「${currentAddress.label}」当前没有信件"
-                    else "还没有信件"
+                    val hint = when {
+                        showHidden -> "没有已隐藏的信件"
+                        tab == Tab.Inbox && currentAddress != null -> "「${currentAddress.label}」当前没有信件"
+                        else -> "还没有信件"
+                    }
                     Text(hint, style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(letters, key = { it.id }) { l ->
-                        LetterRow(l, mine = tab == Tab.Outbox, onClick = { onOpenLetter(l.id) })
+                        LetterRow(
+                            l,
+                            mine = tab == Tab.Outbox,
+                            onClick = { onOpenLetter(l.id) },
+                            onExpedite = if (tab == Tab.Outbox && l.status == "in_transit") {
+                                {
+                                    scope.launch {
+                                        runCatching { container.letters.expedite(l.id, 5) }
+                                            .onSuccess { reload() }
+                                            .onFailure { error = it.message }
+                                    }
+                                }
+                            } else null,
+                            onHide = if (!showHidden && !l.hidden) {
+                                {
+                                    scope.launch {
+                                        runCatching { container.letters.hide(l.id) }
+                                            .onSuccess { reload() }
+                                            .onFailure { error = it.message }
+                                    }
+                                }
+                            } else null,
+                            onUnhide = if (showHidden || l.hidden) {
+                                {
+                                    scope.launch {
+                                        runCatching { container.letters.unhide(l.id) }
+                                            .onSuccess { reload() }
+                                            .onFailure { error = it.message }
+                                    }
+                                }
+                            } else null
+                        )
                         HorizontalDivider()
                     }
                 }
@@ -224,7 +272,14 @@ fun HomeScreen(
 }
 
 @Composable
-private fun LetterRow(l: LetterSummaryDto, mine: Boolean, onClick: () -> Unit) {
+private fun LetterRow(
+    l: LetterSummaryDto,
+    mine: Boolean,
+    onClick: () -> Unit,
+    onExpedite: (() -> Unit)? = null,
+    onHide: (() -> Unit)? = null,
+    onUnhide: (() -> Unit)? = null
+) {
     Column(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp)
     ) {
@@ -234,6 +289,13 @@ private fun LetterRow(l: LetterSummaryDto, mine: Boolean, onClick: () -> Unit) {
             Spacer(Modifier.weight(1f))
             AssistChip(onClick = {}, label = { Text(statusLabel(l.status, l.transitStage)) })
         }
+        l.recipientAddressLabel?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                if (mine) "→ 寄到「$it」" else "→ 收件地址：$it",
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
         l.preview?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(4.dp))
             Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2)
@@ -242,6 +304,20 @@ private fun LetterRow(l: LetterSummaryDto, mine: Boolean, onClick: () -> Unit) {
         val time = l.deliveredAt ?: l.deliveryAt ?: l.sentAt
         time?.let {
             Text(it.take(19).replace('T', ' '), style = MaterialTheme.typography.labelSmall)
+        }
+        if (onExpedite != null || onHide != null || onUnhide != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                if (onExpedite != null) {
+                    TextButton(onClick = onExpedite) { Text("加速到达") }
+                }
+                if (onHide != null) {
+                    TextButton(onClick = onHide) { Text("隐藏") }
+                }
+                if (onUnhide != null) {
+                    TextButton(onClick = onUnhide) { Text("恢复") }
+                }
+            }
         }
     }
 }

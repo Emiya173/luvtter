@@ -49,10 +49,17 @@ fun LetterDetailScreen(
             val s = d.summary
             Text(s.sender?.displayName ?: "—", style = MaterialTheme.typography.titleMedium)
             Text("→ ${s.recipient?.displayName ?: "—"}", style = MaterialTheme.typography.bodyMedium)
+            s.recipientAddressLabel?.takeIf { it.isNotBlank() }?.let {
+                Text("收件地址：$it", style = MaterialTheme.typography.labelMedium)
+            }
             Spacer(Modifier.height(8.dp))
             Text("状态: ${s.status}${s.transitStage?.let { " ($it)" } ?: ""}", style = MaterialTheme.typography.labelMedium)
             s.deliveryAt?.let { Text("预计送达: $it", style = MaterialTheme.typography.labelSmall) }
             s.deliveredAt?.let { Text("送达时间: $it", style = MaterialTheme.typography.labelSmall) }
+            if (s.hidden) {
+                Spacer(Modifier.height(4.dp))
+                Text("（这封信已从你的箱子中隐藏）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            }
             Spacer(Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
@@ -71,13 +78,24 @@ fun LetterDetailScreen(
             }
 
             Spacer(Modifier.height(24.dp))
-            if (s.status == "delivered" || s.status == "read") {
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        runCatching { container.letters.hide(letterId) }
-                        onBack()
-                    }
-                }) { Text("隐藏") }
+            Row {
+                if (s.hidden) {
+                    OutlinedButton(onClick = {
+                        scope.launch {
+                            runCatching { container.letters.unhide(letterId) }
+                                .onSuccess { onBack() }
+                                .onFailure { error = it.message }
+                        }
+                    }) { Text("恢复") }
+                } else if (s.status == "delivered" || s.status == "read" || s.status == "in_transit") {
+                    OutlinedButton(onClick = {
+                        scope.launch {
+                            runCatching { container.letters.hide(letterId) }
+                                .onSuccess { onBack() }
+                                .onFailure { error = it.message }
+                        }
+                    }) { Text("隐藏") }
+                }
             }
         }
     }

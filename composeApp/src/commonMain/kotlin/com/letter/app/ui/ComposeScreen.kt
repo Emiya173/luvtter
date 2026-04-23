@@ -23,6 +23,7 @@ fun ComposeScreen(
     var stamps by remember { mutableStateOf<List<StampDto>>(emptyList()) }
     var addresses by remember { mutableStateOf<List<AddressDto>>(emptyList()) }
     var assets by remember { mutableStateOf<MyAssetsDto?>(null) }
+    var contacts by remember { mutableStateOf<List<ContactDto>>(emptyList()) }
 
     var recipientHandle by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
@@ -42,6 +43,7 @@ fun ComposeScreen(
             stamps = container.catalog.stamps()
             addresses = container.addresses.list()
             assets = container.catalog.myAssets()
+            contacts = runCatching { container.contacts.list() }.getOrDefault(emptyList())
             stampId = stamps.firstOrNull()?.id
             senderAddressId = addresses.firstOrNull { it.isDefault }?.id ?: addresses.firstOrNull()?.id
         } catch (e: Exception) { status = "加载失败: ${e.message}" }
@@ -67,6 +69,20 @@ fun ComposeScreen(
         topBar = { TopAppBar(title = { Text("写一封信") }, navigationIcon = { TextButton(onClick = onCancel) { Text("取消") } }) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
+            if (contacts.isNotEmpty()) {
+                Text("从联系人选择", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(4.dp))
+                FlowChips(
+                    items = contacts.map {
+                        Triple(it.target.handle, "${it.target.displayName} · @${it.target.handle}", recipientHandle == it.target.handle)
+                    },
+                    onSelect = { handle ->
+                        recipientHandle = handle
+                        scope.launch { lookupRecipient() }
+                    }
+                )
+                Spacer(Modifier.height(8.dp))
+            }
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = recipientHandle, onValueChange = { recipientHandle = it.trim() },

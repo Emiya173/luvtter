@@ -71,17 +71,32 @@ fun Route.letterRoutes(service: LetterService) {
                 service.hide(uid, id)
                 call.respond(HttpStatusCode.NoContent)
             }
+            post("/{id}/unhide") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val id = parseId(call.parameters["id"]!!)
+                service.unhide(uid, id)
+                call.respond(HttpStatusCode.NoContent)
+            }
+            // 测试入口：将在途信件加速到 N 秒后送达（仅寄件人；上限 1h）
+            post("/{id}/expedite") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val id = parseId(call.parameters["id"]!!)
+                val seconds = call.request.queryParameters["seconds"]?.toLongOrNull() ?: 5L
+                call.respond(ApiResponse(service.expedite(uid, id, seconds)))
+            }
         }
 
         get("/api/v1/inbox") {
             val uid = call.principal<JWTPrincipal>()!!.userId()
             val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
-            call.respond(ApiResponse(service.inbox(uid, limit)))
+            val hidden = call.request.queryParameters["hidden"]?.toBooleanStrictOrNull() ?: false
+            call.respond(ApiResponse(service.inbox(uid, limit, hidden)))
         }
         get("/api/v1/outbox") {
             val uid = call.principal<JWTPrincipal>()!!.userId()
             val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
-            call.respond(ApiResponse(service.outbox(uid, limit)))
+            val hidden = call.request.queryParameters["hidden"]?.toBooleanStrictOrNull() ?: false
+            call.respond(ApiResponse(service.outbox(uid, limit, hidden)))
         }
     }
 }

@@ -69,7 +69,9 @@ data class LetterSummaryDto(
     val wearLevel: Int = 0,
     val isFavorite: Boolean = false,
     val replyToLetterId: String? = null,
-    val preview: String? = null
+    val preview: String? = null,
+    val recipientAddressLabel: String? = null,
+    val hidden: Boolean = false
 )
 
 @Serializable

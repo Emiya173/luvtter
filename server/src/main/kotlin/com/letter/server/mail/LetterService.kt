@@ -21,6 +21,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.lessEq
@@ -265,7 +266,7 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
 
     // --- 收件 ---
 
-    fun inbox(userId: Uuid, limit: Int = 50): List<LetterSummaryDto> = transaction {
+    fun inbox(userId: Uuid, limit: Int = 50, hidden: Boolean = false): List<LetterSummaryDto> = transaction {
         val nowTs = now()
         val currentAddressId = Users.selectAll().where { Users.id eq userId }
             .firstOrNull()?.get(Users.currentAddressId)
@@ -301,23 +302,33 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
                 )
             }
 
-        // 步骤 2：收件箱仅返回寄到「当前位置」的信件
+        // 步骤 2：收件箱
+        // - hidden=false: 仅返回当前位置已送达且未隐藏的信
+        // - hidden=true: 返回已隐藏的信（不限位置，便于用户找回）
         Letters.selectAll()
             .where {
                 val base = (Letters.recipientId eq userId) and
                     (Letters.status inList listOf("delivered", "read")) and
-                    (Letters.deliveryAt lessEq nowTs) and
-                    (Letters.recipientHiddenAt.isNull())
-                if (currentAddressId != null) base and (Letters.recipientAddressId eq currentAddressId) else base
+                    (Letters.deliveryAt lessEq nowTs)
+                if (hidden) {
+                    base and Letters.recipientHiddenAt.isNotNull()
+                } else {
+                    val visible = base and Letters.recipientHiddenAt.isNull()
+                    if (currentAddressId != null) visible and (Letters.recipientAddressId eq currentAddressId) else visible
+                }
             }
             .orderBy(Letters.deliveryAt to SortOrder.DESC)
             .limit(limit)
             .map { row -> buildSummary(row, userId) }
     }
 
-    fun outbox(userId: Uuid, limit: Int = 50): List<LetterSummaryDto> = transaction {
+    fun outbox(userId: Uuid, limit: Int = 50, hidden: Boolean = false): List<LetterSummaryDto> = transaction {
         Letters.selectAll()
-            .where { (Letters.senderId eq userId) and (Letters.senderHiddenAt.isNull()) }
+            .where {
+                val base = Letters.senderId eq userId
+                if (hidden) base and Letters.senderHiddenAt.isNotNull()
+                else base and Letters.senderHiddenAt.isNull()
+            }
             .orderBy(Letters.createdAt to SortOrder.DESC)
             .limit(limit)
             .map { buildSummary(it, userId) }
@@ -361,12 +372,40 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
         }
     }
 
+    fun expedite(senderId: Uuid, id: Uuid, seconds: Long): LetterDetailDto = transaction {
+        val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
+            ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        if (row[Letters.senderId] != senderId) {
+            throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        }
+        if (row[Letters.status] !in listOf("in_transit")) {
+            throw ApiException("LETTER_NOT_EDITABLE", "仅在途信件可加速", HttpStatusCode.Conflict)
+        }
+        val target = now().plusSeconds(seconds.coerceIn(1, 3600))
+        Letters.update({ Letters.id eq id }) {
+            it[deliveryAt] = target
+            it[updatedAt] = now()
+        }
+        log.info { "letter.expedite id=$id seconds=$seconds newDeliveryAt=$target" }
+        loadDetail(id, senderId)
+    }
+
     fun hide(viewerId: Uuid, id: Uuid) = transaction {
         val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
             ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
         Letters.update({ Letters.id eq id }) {
             if (row[Letters.senderId] == viewerId) it[senderHiddenAt] = now()
             if (row[Letters.recipientId] == viewerId) it[recipientHiddenAt] = now()
+            it[updatedAt] = now()
+        }
+    }
+
+    fun unhide(viewerId: Uuid, id: Uuid) = transaction {
+        val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
+            ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        Letters.update({ Letters.id eq id }) {
+            if (row[Letters.senderId] == viewerId) it[senderHiddenAt] = null
+            if (row[Letters.recipientId] == viewerId) it[recipientHiddenAt] = null
             it[updatedAt] = now()
         }
     }
@@ -481,9 +520,20 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
             val end = row[Letters.deliveredAt] ?: now()
             wearLevelForHours(java.time.Duration.between(sentAt, end).toHours())
         } else 0
+        // 寄件人不应感知收件人是否已读：把 read 状态对寄件人折叠回 delivered，并隐藏 readAt
+        val isSenderViewing = row[Letters.senderId] == viewerId && row[Letters.recipientId] != viewerId
+        val rawStatus = row[Letters.status]
+        val visibleStatus = if (isSenderViewing && rawStatus == "read") "delivered" else rawStatus
+        val visibleReadAt = if (isSenderViewing) null else row[Letters.readAt]?.toString()
+        val recipientAddressLabel = row[Letters.recipientAddressId]?.let { aid ->
+            UserAddresses.selectAll().where { UserAddresses.id eq aid }
+                .firstOrNull()?.get(UserAddresses.label)
+        }
+        val hidden = if (isSenderViewing) row[Letters.senderHiddenAt] != null
+        else row[Letters.recipientHiddenAt] != null
         return LetterSummaryDto(
             id = row[Letters.id].toString(),
-            status = row[Letters.status],
+            status = visibleStatus,
             sender = sender,
             recipient = recipient,
             stampCode = stamp,
@@ -491,13 +541,15 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
             sentAt = sentAt?.toString(),
             deliveryAt = deliveryAt?.toString(),
             deliveredAt = row[Letters.deliveredAt]?.toString(),
-            readAt = row[Letters.readAt]?.toString(),
+            readAt = visibleReadAt,
             sealedUntil = row[Letters.sealedUntil]?.toString(),
             totalWeight = row[Letters.totalWeight],
             transitStage = transitStageVal,
             wearLevel = wear,
             isFavorite = isFavorite,
-            replyToLetterId = row[Letters.replyToLetterId]?.toString()
+            replyToLetterId = row[Letters.replyToLetterId]?.toString(),
+            recipientAddressLabel = recipientAddressLabel,
+            hidden = hidden
         )
     }
 

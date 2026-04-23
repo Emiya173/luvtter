@@ -45,9 +45,30 @@ class LetterApi(private val client: HttpClient) {
         client.post("/api/v1/letters/$id/hide").ensureSuccess()
     }
 
-    suspend fun inbox(limit: Int = 50): List<LetterSummaryDto> =
-        client.get("/api/v1/inbox") { url { parameters.append("limit", limit.toString()) } }.unwrap()
+    suspend fun unhide(id: String) {
+        client.post("/api/v1/letters/$id/unhide").ensureSuccess()
+    }
 
-    suspend fun outbox(limit: Int = 50): List<LetterSummaryDto> =
-        client.get("/api/v1/outbox") { url { parameters.append("limit", limit.toString()) } }.unwrap()
+    suspend fun inbox(limit: Int = 50, hidden: Boolean = false): List<LetterSummaryDto> =
+        client.get("/api/v1/inbox") {
+            url {
+                parameters.append("limit", limit.toString())
+                if (hidden) parameters.append("hidden", "true")
+            }
+        }.unwrap()
+
+    suspend fun outbox(limit: Int = 50, hidden: Boolean = false): List<LetterSummaryDto> =
+        client.get("/api/v1/outbox") {
+            url {
+                parameters.append("limit", limit.toString())
+                if (hidden) parameters.append("hidden", "true")
+            }
+        }.unwrap()
+
+    suspend fun expedite(id: String, seconds: Long = 5): LetterDetailDto {
+        log.info { "letters.expedite id=$id seconds=$seconds" }
+        return client.post("/api/v1/letters/$id/expedite") {
+            url { parameters.append("seconds", seconds.toString()) }
+        }.unwrap()
+    }
 }
