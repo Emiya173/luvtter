@@ -7,9 +7,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letter.app.ui.common.FlowChips
+import com.letter.contract.dto.TextSegment
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -33,7 +36,10 @@ fun ComposeScreen(
         onRecipientHandleChange = vm::onRecipientHandleChange,
         onLookup = vm::lookupRecipient,
         onRecipientAddressSelect = vm::onRecipientAddressSelect,
-        onContentChange = vm::onContentChange,
+        onSegmentTextChange = vm::onSegmentTextChange,
+        onSegmentStyleToggle = vm::onSegmentStyleToggle,
+        onSegmentAddAfter = vm::onSegmentAddAfter,
+        onSegmentRemove = vm::onSegmentRemove,
         onStampSelect = vm::onStampSelect,
         onStationerySelect = vm::onStationerySelect,
         onFontSelect = vm::onFontSelect,
@@ -66,7 +72,10 @@ private fun ComposeContent(
     onRecipientHandleChange: (String) -> Unit,
     onLookup: () -> Unit,
     onRecipientAddressSelect: (String) -> Unit,
-    onContentChange: (String) -> Unit,
+    onSegmentTextChange: (Int, String) -> Unit,
+    onSegmentStyleToggle: (Int) -> Unit,
+    onSegmentAddAfter: (Int) -> Unit,
+    onSegmentRemove: (Int) -> Unit,
     onStampSelect: (String) -> Unit,
     onStationerySelect: (String?) -> Unit,
     onFontSelect: (String?) -> Unit,
@@ -128,12 +137,25 @@ private fun ComposeContent(
             }
 
             Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = state.content, onValueChange = onContentChange,
-                label = { Text("信件内容") },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp),
-                minLines = 6
+            Text("信件内容", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "每一段为独立片段,可单独划掉(保留痕迹,服务端仍存原文)。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(Modifier.height(6.dp))
+            state.segments.forEachIndexed { index, seg ->
+                SegmentEditorRow(
+                    segment = seg,
+                    index = index,
+                    canRemove = state.segments.size > 1,
+                    onTextChange = { onSegmentTextChange(index, it) },
+                    onToggleStrikethrough = { onSegmentStyleToggle(index) },
+                    onAddAfter = { onSegmentAddAfter(index) },
+                    onRemove = { onSegmentRemove(index) }
+                )
+                Spacer(Modifier.height(6.dp))
+            }
             Spacer(Modifier.height(16.dp))
 
             Text("邮票", style = MaterialTheme.typography.titleSmall)
@@ -374,4 +396,47 @@ private fun AddPhotoDialog(onDismiss: () -> Unit, onConfirm: (String, Int) -> Un
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
+}
+
+@Composable
+private fun SegmentEditorRow(
+    segment: TextSegment,
+    index: Int,
+    canRemove: Boolean,
+    onTextChange: (String) -> Unit,
+    onToggleStrikethrough: () -> Unit,
+    onAddAfter: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val isStruck = segment.style == STYLE_STRIKETHROUGH
+    val labelText = buildString {
+        append("段 ")
+        append(index + 1)
+        if (isStruck) append(" · 已划掉")
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = segment.text,
+            onValueChange = onTextChange,
+            label = { Text(labelText) },
+            textStyle = if (isStruck) {
+                TextStyle(textDecoration = TextDecoration.LineThrough)
+            } else {
+                TextStyle.Default
+            },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
+            minLines = 2
+        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onToggleStrikethrough) {
+                Text(if (isStruck) "取消划掉" else "划掉本段")
+            }
+            TextButton(onClick = onAddAfter) { Text("下方新增段") }
+            Spacer(Modifier.weight(1f))
+            TextButton(
+                enabled = canRemove,
+                onClick = onRemove
+            ) { Text("删除") }
+        }
+    }
 }

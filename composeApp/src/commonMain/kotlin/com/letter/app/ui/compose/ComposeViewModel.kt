@@ -74,12 +74,12 @@ class ComposeViewModel(
     private suspend fun hydrateFromDraft(id: String) {
         val detail = letters.getDraft(id)
         val s = detail.summary
-        val text = detail.body?.segments.orEmpty()
-            .joinToString("") { if (it.style == "strikethrough") "" else it.text }
+        val loaded = detail.body?.segments.orEmpty()
+        val segs = if (loaded.isNotEmpty()) loaded else listOf(TextSegment(""))
         _state.update { prev ->
             prev.copy(
                 recipientHandle = s.recipient?.handle.orEmpty(),
-                content = text,
+                segments = segs,
                 fontCode = detail.fontCode,
                 sealedUntil = s.sealedUntil,
                 stampId = s.stampCode?.let { code -> prev.stamps.firstOrNull { it.code == code }?.id } ?: prev.stampId,
@@ -91,7 +91,34 @@ class ComposeViewModel(
     }
 
     fun onRecipientHandleChange(v: String) = _state.update { it.copy(recipientHandle = v.trim()) }
-    fun onContentChange(v: String) = _state.update { it.copy(content = v) }
+
+    fun onSegmentTextChange(index: Int, text: String) = _state.update { st ->
+        if (index !in st.segments.indices) return@update st
+        st.copy(segments = st.segments.toMutableList().also { it[index] = it[index].copy(text = text) })
+    }
+
+    fun onSegmentStyleToggle(index: Int) = _state.update { st ->
+        if (index !in st.segments.indices) return@update st
+        val cur = st.segments[index]
+        val next = if (cur.style == STYLE_STRIKETHROUGH) null else STYLE_STRIKETHROUGH
+        st.copy(segments = st.segments.toMutableList().also { it[index] = cur.copy(style = next) })
+    }
+
+    fun onSegmentAddAfter(index: Int) = _state.update { st ->
+        val i = index.coerceIn(-1, st.segments.lastIndex)
+        val next = st.segments.toMutableList().apply { add(i + 1, TextSegment("")) }
+        st.copy(segments = next)
+    }
+
+    fun onSegmentRemove(index: Int) = _state.update { st ->
+        if (index !in st.segments.indices) return@update st
+        if (st.segments.size <= 1) {
+            st.copy(segments = listOf(TextSegment("")))
+        } else {
+            st.copy(segments = st.segments.toMutableList().also { it.removeAt(index) })
+        }
+    }
+
     fun onStampSelect(id: String) = _state.update { it.copy(stampId = id) }
     fun onStationerySelect(id: String?) = _state.update { it.copy(stationeryId = id) }
     fun onFontSelect(code: String?) = _state.update { it.copy(fontCode = code) }
@@ -135,7 +162,8 @@ class ComposeViewModel(
 
     private suspend fun upsertDraft(): String {
         val s = _state.value
-        val body = LetterBodyText(listOf(TextSegment(s.content)))
+        val packed = s.segments.filter { it.text.isNotEmpty() }.ifEmpty { listOf(TextSegment("")) }
+        val body = LetterBodyText(packed)
         val existing = s.draftId
         return if (existing != null) {
             letters.updateDraft(existing, UpdateDraftRequest(

@@ -8,6 +8,7 @@ import com.letter.contract.dto.RecipientAddressDto
 import com.letter.contract.dto.StampDto
 import com.letter.contract.dto.StationeryDto
 import com.letter.contract.dto.StickerDto
+import com.letter.contract.dto.TextSegment
 
 data class ComposeUiState(
     val recipientHandle: String = "",
@@ -16,7 +17,7 @@ data class ComposeUiState(
     val recipientAddressId: String? = null,
     val lookupBusy: Boolean = false,
 
-    val content: String = "",
+    val segments: List<TextSegment> = listOf(TextSegment("")),
     val stamps: List<StampDto> = emptyList(),
     val stampId: String? = null,
     val stationeries: List<StationeryDto> = emptyList(),
@@ -37,11 +38,14 @@ data class ComposeUiState(
     val attachmentBusy: Boolean = false,
     val status: String? = null
 ) {
-    val canSaveDraft: Boolean get() = !loading && recipientHandle.isNotBlank() && content.isNotBlank()
+    val canSaveDraft: Boolean
+        get() = !loading && recipientHandle.isNotBlank() && segments.any { it.text.isNotBlank() }
     val canSend: Boolean get() = canSaveDraft && stampId != null
     val totalWeight: Int get() = attachments.sumOf { it.weight }
     val stampCapacity: Int? get() = stampId?.let { id -> stamps.firstOrNull { it.id == id }?.weightCapacity }
 }
+
+internal const val STYLE_STRIKETHROUGH = "strikethrough"
 
 internal val FONT_OPTIONS: List<Pair<String?, String>> = listOf(
     null to "默认",
