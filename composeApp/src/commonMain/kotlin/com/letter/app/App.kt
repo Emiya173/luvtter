@@ -14,6 +14,7 @@ import com.letter.app.navigation.HomeRoute
 import com.letter.app.navigation.LetterDetailRoute
 import com.letter.app.navigation.LoginRoute
 import com.letter.app.navigation.RegisterRoute
+import com.letter.app.navigation.SessionsRoute
 import com.letter.app.ui.addresses.AddressesScreen
 import com.letter.app.ui.auth.LoginScreen
 import com.letter.app.ui.auth.RegisterScreen
@@ -21,6 +22,7 @@ import com.letter.app.ui.compose.ComposeScreen
 import com.letter.app.ui.contacts.ContactsScreen
 import com.letter.app.ui.home.HomeScreen
 import com.letter.app.ui.letter.LetterDetailScreen
+import com.letter.app.ui.sessions.SessionsScreen
 import com.letter.shared.auth.TokenStore
 import org.koin.compose.KoinApplication
 import org.koin.compose.koinInject
@@ -58,6 +60,7 @@ fun App() {
                         onCompose = { nav.navigate(ComposeRoute()) },
                         onAddresses = { nav.navigate(AddressesRoute) },
                         onContacts = { nav.navigate(ContactsRoute) },
+                        onSessions = { nav.navigate(SessionsRoute) },
                         onOpenLetter = { id -> nav.navigate(LetterDetailRoute(id)) },
                         onEditDraft = { id -> nav.navigate(ComposeRoute(editDraftId = id)) },
                         onLogout = {
@@ -86,6 +89,9 @@ fun App() {
                 }
                 composable<ContactsRoute> {
                     ContactsScreen(onBack = { nav.popBackStack() })
+                }
+                composable<SessionsRoute> {
+                    SessionsScreen(onBack = { nav.popBackStack() })
                 }
             }
         }

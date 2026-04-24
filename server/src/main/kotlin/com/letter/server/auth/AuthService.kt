@@ -125,6 +125,23 @@ class AuthService(private val jwt: JwtConfig) {
         AuthSessions.deleteWhere { (AuthSessions.id eq sessionId) and (AuthSessions.userId eq userId) }
     }
 
+    fun listSessions(userId: Uuid): List<SessionDto> = transaction {
+        AuthSessions
+            .selectAll()
+            .where { AuthSessions.userId eq userId }
+            .orderBy(AuthSessions.lastActiveAt, org.jetbrains.exposed.v1.core.SortOrder.DESC)
+            .map { row ->
+                SessionDto(
+                    id = row[AuthSessions.id].toString(),
+                    deviceName = row[AuthSessions.deviceName],
+                    platform = row[AuthSessions.platform],
+                    lastActiveAt = row[AuthSessions.lastActiveAt].toString(),
+                    expiresAt = row[AuthSessions.expiresAt].toString(),
+                    createdAt = row[AuthSessions.createdAt].toString()
+                )
+            }
+    }
+
     private fun issueTokens(userId: Uuid, user: UserDto, deviceName: String?, platform: String?): TokenPair {
         val refresh = randomToken()
         val ts = now()

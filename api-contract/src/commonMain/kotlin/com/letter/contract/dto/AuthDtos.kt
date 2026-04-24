@@ -58,3 +58,13 @@ data class HandleAvailability(val handle: String, val available: Boolean)
 
 @Serializable
 data class FinalizeHandleRequest(val handle: String)
+
+@Serializable
+data class SessionDto(
+    val id: String,
+    val deviceName: String? = null,
+    val platform: String? = null,
+    val lastActiveAt: String,
+    val expiresAt: String,
+    val createdAt: String
+)

@@ -41,5 +41,12 @@ class MeApi(private val client: HttpClient) {
 
     suspend fun setCurrentAddress(addressId: String): UserDto =
         client.post("/api/v1/me/current-address") { setBody(SetCurrentAddressRequest(addressId)) }.unwrap()
+
+    suspend fun listSessions(): List<SessionDto> =
+        client.get("/api/v1/me/sessions").unwrap()
+
+    suspend fun revokeSession(id: String) {
+        client.delete("/api/v1/me/sessions/$id").ensureSuccess()
+    }
 }
 

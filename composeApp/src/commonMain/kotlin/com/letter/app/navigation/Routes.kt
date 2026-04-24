@@ -26,3 +26,6 @@ data object AddressesRoute
 
 @Serializable
 data object ContactsRoute
+
+@Serializable
+data object SessionsRoute

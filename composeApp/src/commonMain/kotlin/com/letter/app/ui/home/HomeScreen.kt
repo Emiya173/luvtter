@@ -22,6 +22,7 @@ fun HomeScreen(
     onCompose: () -> Unit,
     onAddresses: () -> Unit,
     onContacts: () -> Unit,
+    onSessions: () -> Unit,
     onOpenLetter: (String) -> Unit,
     onEditDraft: (String) -> Unit,
     onLogout: () -> Unit,
@@ -44,6 +45,7 @@ fun HomeScreen(
         onCompose = onCompose,
         onAddresses = onAddresses,
         onContacts = onContacts,
+        onSessions = onSessions,
         onOpenLetter = onOpenLetter,
         onEditDraft = onEditDraft,
         onLogout = onLogout,
@@ -97,6 +99,7 @@ private fun HomeContent(
     onCompose: () -> Unit,
     onAddresses: () -> Unit,
     onContacts: () -> Unit,
+    onSessions: () -> Unit,
     onOpenLetter: (String) -> Unit,
     onEditDraft: (String) -> Unit,
     onLogout: () -> Unit,
@@ -148,6 +151,7 @@ private fun HomeContent(
                     IconButton(onClick = onShowSearch) { Text("搜", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onContacts) { Text("人", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onAddresses) { Text("址", style = MaterialTheme.typography.labelLarge) }
+                    IconButton(onClick = onSessions) { Text("设", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onRefreshAll) { Text("⟳") }
                     TextButton(onClick = onLogout) { Text("退出") }
                 }

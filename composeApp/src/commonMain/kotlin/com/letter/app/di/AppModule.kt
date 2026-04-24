@@ -9,6 +9,7 @@ import com.letter.app.ui.contacts.ContactsViewModel
 import com.letter.app.ui.home.HomeViewModel
 import com.letter.app.ui.home.SearchViewModel
 import com.letter.app.ui.letter.LetterDetailViewModel
+import com.letter.app.ui.sessions.SessionsViewModel
 import com.letter.shared.auth.TokenStore
 import com.letter.shared.network.AddressApi
 import com.letter.shared.network.AuthApi
@@ -48,6 +49,7 @@ fun appModule(apiBaseUrl: String) = module {
     viewModelOf(::SearchViewModel)
     viewModelOf(::AddressesViewModel)
     viewModelOf(::ContactsViewModel)
+    viewModelOf(::SessionsViewModel)
 
     viewModel { (handle: SavedStateHandle) ->
         ComposeViewModel(handle, get(), get(), get(), get())

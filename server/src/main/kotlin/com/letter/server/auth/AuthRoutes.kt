@@ -35,8 +35,20 @@ fun Route.authRoutes(authService: AuthService, userService: UserService) {
     }
 }
 
-fun Route.meRoutes(userService: UserService, addressService: AddressService) {
+fun Route.meRoutes(userService: UserService, addressService: AddressService, authService: AuthService) {
     authenticate("auth-jwt") {
+        route("/api/v1/me/sessions") {
+            get {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                call.respond(ApiResponse(authService.listSessions(uid)))
+            }
+            delete("/{id}") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val id = parseId(call.parameters["id"]!!)
+                authService.logoutSession(uid, id)
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
         route("/api/v1/me") {
             get {
                 val uid = call.principal<JWTPrincipal>()!!.userId()
