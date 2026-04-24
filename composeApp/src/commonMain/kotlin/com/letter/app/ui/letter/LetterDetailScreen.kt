@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LetterDetailScreen(
     onReply: (recipientHandle: String?) -> Unit,
@@ -24,7 +23,38 @@ fun LetterDetailScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showFolderPicker by remember { mutableStateOf(false) }
+    LetterDetailContent(
+        state = state,
+        viewerId = vm.viewerId,
+        showFolderPicker = showFolderPicker,
+        onReply = onReply,
+        onBack = onBack,
+        onToggleFavorite = vm::toggleFavorite,
+        onShowFolderPicker = { showFolderPicker = true },
+        onDismissFolderPicker = { showFolderPicker = false },
+        onAssignFolder = { id ->
+            vm.assignFolder(id) { showFolderPicker = false }
+        },
+        onHide = { vm.hide(onBack) },
+        onUnhide = { vm.unhide(onBack) }
+    )
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LetterDetailContent(
+    state: LetterDetailUiState,
+    viewerId: String?,
+    showFolderPicker: Boolean,
+    onReply: (recipientHandle: String?) -> Unit,
+    onBack: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onShowFolderPicker: () -> Unit,
+    onDismissFolderPicker: () -> Unit,
+    onAssignFolder: (String?) -> Unit,
+    onHide: () -> Unit,
+    onUnhide: () -> Unit
+) {
     Scaffold(
         topBar = { TopAppBar(title = { Text("信件详情") }, navigationIcon = { TextButton(onClick = onBack) { Text("返回") } }) }
     ) { padding ->
@@ -37,7 +67,7 @@ fun LetterDetailScreen(
                 return@Column
             }
             val s = d.summary
-            val viewerIsRecipient = vm.viewerId != null && s.recipient?.id == vm.viewerId
+            val viewerIsRecipient = viewerId != null && s.recipient?.id == viewerId
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(s.sender?.displayName ?: "—", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.weight(1f))
@@ -97,16 +127,16 @@ fun LetterDetailScreen(
                     Button(onClick = { onReply(s.sender?.handle) }) { Text("回信") }
                     Spacer(Modifier.width(8.dp))
                 }
-                OutlinedButton(onClick = vm::toggleFavorite) {
+                OutlinedButton(onClick = onToggleFavorite) {
                     Text(if (s.isFavorite) "取消收藏" else "收藏")
                 }
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { showFolderPicker = true }) { Text("移到分类") }
+                OutlinedButton(onClick = onShowFolderPicker) { Text("移到分类") }
                 Spacer(Modifier.width(8.dp))
                 if (s.hidden) {
-                    OutlinedButton(onClick = { vm.unhide(onBack) }) { Text("恢复") }
+                    OutlinedButton(onClick = onUnhide) { Text("恢复") }
                 } else if (s.status == "delivered" || s.status == "read" || s.status == "in_transit") {
-                    OutlinedButton(onClick = { vm.hide(onBack) }) { Text("隐藏") }
+                    OutlinedButton(onClick = onHide) { Text("隐藏") }
                 }
             }
         }
@@ -114,25 +144,21 @@ fun LetterDetailScreen(
 
     if (showFolderPicker) {
         AlertDialog(
-            onDismissRequest = { showFolderPicker = false },
+            onDismissRequest = onDismissFolderPicker,
             title = { Text("移到分类") },
             text = {
                 Column {
                     if (state.folders.isEmpty()) {
                         Text("还没有分类，请先到「分类」标签创建。", style = MaterialTheme.typography.bodySmall)
                     } else {
-                        TextButton(onClick = {
-                            vm.assignFolder(null) { showFolderPicker = false }
-                        }) { Text("（移除分类）") }
+                        TextButton(onClick = { onAssignFolder(null) }) { Text("（移除分类）") }
                         state.folders.forEach { f ->
-                            TextButton(onClick = {
-                                vm.assignFolder(f.id) { showFolderPicker = false }
-                            }) { Text(f.name) }
+                            TextButton(onClick = { onAssignFolder(f.id) }) { Text(f.name) }
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showFolderPicker = false }) { Text("关闭") } }
+            confirmButton = { TextButton(onClick = onDismissFolderPicker) { Text("关闭") } }
         )
     }
 }

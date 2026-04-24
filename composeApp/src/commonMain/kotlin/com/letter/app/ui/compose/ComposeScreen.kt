@@ -19,9 +19,11 @@ fun ComposeScreen(
     vm: ComposeViewModel = koinViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    var showSealDialog by remember { mutableStateOf(false) }
     ComposeContent(
         state = state,
         isReply = vm.isReply,
+        showSealDialog = showSealDialog,
         onCancel = onCancel,
         onPickContact = vm::lookupRecipientFromContact,
         onRecipientHandleChange = vm::onRecipientHandleChange,
@@ -34,7 +36,9 @@ fun ComposeScreen(
         onSenderAddressSelect = vm::onSenderAddressSelect,
         onSaveDraft = vm::saveDraft,
         onSend = { vm.send(onSent) },
-        onSeal = vm::sealUntil
+        onShowSealDialog = { showSealDialog = true },
+        onDismissSealDialog = { showSealDialog = false },
+        onSeal = { iso -> vm.sealUntil(iso); showSealDialog = false }
     )
 }
 
@@ -43,6 +47,7 @@ fun ComposeScreen(
 private fun ComposeContent(
     state: ComposeUiState,
     isReply: Boolean,
+    showSealDialog: Boolean,
     onCancel: () -> Unit,
     onPickContact: (handle: String) -> Unit,
     onRecipientHandleChange: (String) -> Unit,
@@ -55,10 +60,10 @@ private fun ComposeContent(
     onSenderAddressSelect: (String) -> Unit,
     onSaveDraft: () -> Unit,
     onSend: () -> Unit,
+    onShowSealDialog: () -> Unit,
+    onDismissSealDialog: () -> Unit,
     onSeal: (String) -> Unit
 ) {
-    var showSealDialog by remember { mutableStateOf(false) }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -174,7 +179,7 @@ private fun ComposeContent(
                 Spacer(Modifier.width(8.dp))
                 OutlinedButton(
                     enabled = state.canSaveDraft,
-                    onClick = { showSealDialog = true },
+                    onClick = onShowSealDialog,
                     modifier = Modifier.weight(1f)
                 ) { Text("封存草稿") }
                 Spacer(Modifier.width(8.dp))
@@ -189,8 +194,8 @@ private fun ComposeContent(
 
     if (showSealDialog) {
         SealDraftDialog(
-            onDismiss = { showSealDialog = false },
-            onConfirm = { iso -> onSeal(iso); showSealDialog = false }
+            onDismiss = onDismissSealDialog,
+            onConfirm = onSeal
         )
     }
 }

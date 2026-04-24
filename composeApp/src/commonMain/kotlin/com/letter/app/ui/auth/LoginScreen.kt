@@ -19,6 +19,23 @@ fun LoginScreen(
     vm: LoginViewModel = koinViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    LoginContent(
+        state = state,
+        onEmailChange = vm::onEmailChange,
+        onPasswordChange = vm::onPasswordChange,
+        onSubmit = { vm.submit(onSuccess) },
+        onGoRegister = onGoRegister
+    )
+}
+
+@Composable
+private fun LoginContent(
+    state: LoginUiState,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onGoRegister: () -> Unit
+) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -28,14 +45,14 @@ fun LoginScreen(
             Text("登录", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(24.dp))
             OutlinedTextField(
-                value = state.email, onValueChange = vm::onEmailChange,
+                value = state.email, onValueChange = onEmailChange,
                 label = { Text("邮箱") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = state.password, onValueChange = vm::onPasswordChange,
+                value = state.password, onValueChange = onPasswordChange,
                 label = { Text("密码") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -48,7 +65,7 @@ fun LoginScreen(
             Spacer(Modifier.height(20.dp))
             Button(
                 enabled = state.canSubmit,
-                onClick = { vm.submit(onSuccess) },
+                onClick = onSubmit,
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (state.loading) "登录中..." else "登录") }
             Spacer(Modifier.height(8.dp))

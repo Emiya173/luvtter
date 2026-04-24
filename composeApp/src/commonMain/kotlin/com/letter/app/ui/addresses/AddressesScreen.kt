@@ -10,25 +10,52 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddressesScreen(
     onBack: () -> Unit,
     vm: AddressesViewModel = koinViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    AddressesContent(
+        state = state,
+        onBack = onBack,
+        onLabelChange = vm::onLabelChange,
+        onLatChange = vm::onLatChange,
+        onLngChange = vm::onLngChange,
+        onAnchorToggle = vm::onAnchorToggle,
+        onVirtualDistanceChange = vm::onVirtualDistanceChange,
+        onCreate = vm::create,
+        onSetDefault = vm::setDefault,
+        onDelete = vm::delete
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddressesContent(
+    state: AddressesUiState,
+    onBack: () -> Unit,
+    onLabelChange: (String) -> Unit,
+    onLatChange: (String) -> Unit,
+    onLngChange: (String) -> Unit,
+    onAnchorToggle: (String) -> Unit,
+    onVirtualDistanceChange: (String) -> Unit,
+    onCreate: () -> Unit,
+    onSetDefault: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
     Scaffold(
         topBar = { TopAppBar(title = { Text("我的地址") }, navigationIcon = { TextButton(onClick = onBack) { Text("返回") } }) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             Text("新增地址", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(value = state.label, onValueChange = vm::onLabelChange, label = { Text("名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = state.label, onValueChange = onLabelChange, label = { Text("名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
             Row {
-                OutlinedTextField(value = state.lat, onValueChange = vm::onLatChange, label = { Text("纬度 (real)") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = state.lat, onValueChange = onLatChange, label = { Text("纬度 (real)") }, singleLine = true, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(6.dp))
-                OutlinedTextField(value = state.lng, onValueChange = vm::onLngChange, label = { Text("经度 (real)") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = state.lng, onValueChange = onLngChange, label = { Text("经度 (real)") }, singleLine = true, modifier = Modifier.weight(1f))
             }
             Spacer(Modifier.height(8.dp))
             Text("或选择虚拟坐标:", style = MaterialTheme.typography.labelMedium)
@@ -36,7 +63,7 @@ fun AddressesScreen(
                 state.anchors.forEach { a ->
                     FilterChip(
                         selected = state.anchorId == a.id,
-                        onClick = { vm.onAnchorToggle(a.id) },
+                        onClick = { onAnchorToggle(a.id) },
                         label = { Text(a.name) },
                         modifier = Modifier.padding(end = 6.dp)
                     )
@@ -46,7 +73,7 @@ fun AddressesScreen(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = state.virtualDistance,
-                    onValueChange = vm::onVirtualDistanceChange,
+                    onValueChange = onVirtualDistanceChange,
                     label = { Text("虚拟距离 (0-1000)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -55,7 +82,7 @@ fun AddressesScreen(
             Spacer(Modifier.height(12.dp))
             Button(
                 enabled = state.canSubmit,
-                onClick = vm::create,
+                onClick = onCreate,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("创建") }
 
@@ -73,9 +100,9 @@ fun AddressesScreen(
                         trailingContent = {
                             Row {
                                 if (!a.isDefault) {
-                                    TextButton(onClick = { vm.setDefault(a.id) }) { Text("设为默认") }
+                                    TextButton(onClick = { onSetDefault(a.id) }) { Text("设为默认") }
                                 }
-                                TextButton(onClick = { vm.delete(a.id) }) { Text("删除") }
+                                TextButton(onClick = { onDelete(a.id) }) { Text("删除") }
                             }
                         }
                     )

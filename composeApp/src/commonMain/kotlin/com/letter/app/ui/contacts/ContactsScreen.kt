@@ -11,7 +11,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactsScreen(
     onBack: () -> Unit,
@@ -19,8 +18,41 @@ fun ContactsScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val sessionUser = vm.session.collectAsStateWithLifecycle().value?.user
-    var onlyFriends by remember(sessionUser?.onlyFriends) { mutableStateOf(sessionUser?.onlyFriends ?: false) }
+    val serverOnlyFriends = sessionUser?.onlyFriends ?: false
+    var onlyFriends by remember(serverOnlyFriends) { mutableStateOf(serverOnlyFriends) }
+    ContactsContent(
+        state = state,
+        onlyFriends = onlyFriends,
+        onBack = onBack,
+        onOnlyFriendsChange = { v ->
+            onlyFriends = v
+            vm.setOnlyFriends(v) { onlyFriends = !v }
+        },
+        onLookupHandleChange = vm::onLookupHandleChange,
+        onLookup = vm::lookup,
+        onNoteChange = vm::onNoteChange,
+        onAddAsContact = vm::addAsContact,
+        onBlockLookupResult = vm::blockLookupResult,
+        onDeleteContact = vm::deleteContact,
+        onUnblock = vm::unblock
+    )
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ContactsContent(
+    state: ContactsUiState,
+    onlyFriends: Boolean,
+    onBack: () -> Unit,
+    onOnlyFriendsChange: (Boolean) -> Unit,
+    onLookupHandleChange: (String) -> Unit,
+    onLookup: () -> Unit,
+    onNoteChange: (String) -> Unit,
+    onAddAsContact: () -> Unit,
+    onBlockLookupResult: () -> Unit,
+    onDeleteContact: (String) -> Unit,
+    onUnblock: (String) -> Unit
+) {
     Scaffold(
         topBar = { TopAppBar(title = { Text("联系人") }, navigationIcon = { TextButton(onClick = onBack) { Text("返回") } }) }
     ) { padding ->
@@ -30,10 +62,7 @@ fun ContactsScreen(
                     Text("仅好友可寄信给我", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Switch(
                         checked = onlyFriends,
-                        onCheckedChange = { v ->
-                            onlyFriends = v
-                            vm.setOnlyFriends(v) { onlyFriends = !v }
-                        }
+                        onCheckedChange = onOnlyFriendsChange
                     )
                 }
             }
@@ -43,7 +72,7 @@ fun ContactsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = state.lookupHandle,
-                    onValueChange = vm::onLookupHandleChange,
+                    onValueChange = onLookupHandleChange,
                     label = { Text("handle") },
                     singleLine = true,
                     modifier = Modifier.weight(1f)
@@ -51,7 +80,7 @@ fun ContactsScreen(
                 Spacer(Modifier.width(8.dp))
                 Button(
                     enabled = !state.loading && state.lookupHandle.isNotBlank(),
-                    onClick = vm::lookup
+                    onClick = onLookup
                 ) { Text("查找") }
             }
 
@@ -62,12 +91,12 @@ fun ContactsScreen(
                         Text("${lr.user.displayName} · @${lr.user.handle}", style = MaterialTheme.typography.bodyMedium)
                         Text(if (lr.acceptsFromMe) "可接收你的来信" else "对方未接受陌生来信", style = MaterialTheme.typography.labelSmall)
                         Spacer(Modifier.height(6.dp))
-                        OutlinedTextField(value = state.note, onValueChange = vm::onNoteChange, label = { Text("备注（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = state.note, onValueChange = onNoteChange, label = { Text("备注（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(6.dp))
                         Row {
-                            Button(enabled = !state.loading, onClick = vm::addAsContact) { Text("加为联系人") }
+                            Button(enabled = !state.loading, onClick = onAddAsContact) { Text("加为联系人") }
                             Spacer(Modifier.width(8.dp))
-                            OutlinedButton(enabled = !state.loading, onClick = vm::blockLookupResult) { Text("屏蔽") }
+                            OutlinedButton(enabled = !state.loading, onClick = onBlockLookupResult) { Text("屏蔽") }
                         }
                     }
                 }
@@ -85,7 +114,7 @@ fun ContactsScreen(
                         headlineContent = { Text("${c.target.displayName} · @${c.target.handle}") },
                         supportingContent = { c.note?.let { Text(it) } },
                         trailingContent = {
-                            TextButton(onClick = { vm.deleteContact(c.id) }) { Text("删除") }
+                            TextButton(onClick = { onDeleteContact(c.id) }) { Text("删除") }
                         }
                     )
                     HorizontalDivider()
@@ -104,7 +133,7 @@ fun ContactsScreen(
                         ListItem(
                             headlineContent = { Text("${b.target.displayName} · @${b.target.handle}") },
                             trailingContent = {
-                                TextButton(onClick = { vm.unblock(b.target.id) }) { Text("取消屏蔽") }
+                                TextButton(onClick = { onUnblock(b.target.id) }) { Text("取消屏蔽") }
                             }
                         )
                         HorizontalDivider()

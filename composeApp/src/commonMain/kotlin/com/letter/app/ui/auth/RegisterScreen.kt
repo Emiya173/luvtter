@@ -17,6 +17,25 @@ fun RegisterScreen(
     vm: RegisterViewModel = koinViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    RegisterContent(
+        state = state,
+        onEmailChange = vm::onEmailChange,
+        onDisplayNameChange = vm::onDisplayNameChange,
+        onPasswordChange = vm::onPasswordChange,
+        onSubmit = { vm.submit(onSuccess) },
+        onGoLogin = onGoLogin
+    )
+}
+
+@Composable
+private fun RegisterContent(
+    state: RegisterUiState,
+    onEmailChange: (String) -> Unit,
+    onDisplayNameChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onGoLogin: () -> Unit
+) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -26,19 +45,19 @@ fun RegisterScreen(
             Text("注册", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(24.dp))
             OutlinedTextField(
-                value = state.email, onValueChange = vm::onEmailChange,
+                value = state.email, onValueChange = onEmailChange,
                 label = { Text("邮箱") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = state.displayName, onValueChange = vm::onDisplayNameChange,
+                value = state.displayName, onValueChange = onDisplayNameChange,
                 label = { Text("昵称") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = state.password, onValueChange = vm::onPasswordChange,
+                value = state.password, onValueChange = onPasswordChange,
                 label = { Text("密码 (≥8位)") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth()
@@ -50,7 +69,7 @@ fun RegisterScreen(
             Spacer(Modifier.height(20.dp))
             Button(
                 enabled = state.canSubmit,
-                onClick = { vm.submit(onSuccess) },
+                onClick = onSubmit,
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (state.loading) "注册中..." else "注册") }
             Spacer(Modifier.height(8.dp))

@@ -14,9 +14,9 @@ import com.letter.contract.dto.AddressDto
 import com.letter.contract.dto.FolderDto
 import com.letter.contract.dto.LetterSummaryDto
 import com.letter.contract.dto.NotificationDto
+import com.letter.contract.dto.UserDto
 import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onCompose: () -> Unit,
@@ -29,13 +29,103 @@ fun HomeScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val user = vm.session.collectAsStateWithLifecycle().value?.user
-    val currentAddress = remember(user, state.addresses) {
-        state.addresses.firstOrNull { it.id == user?.currentAddressId }
-    }
     var showNotifications by remember { mutableStateOf(false) }
     var showSwitchLocation by remember { mutableStateOf(false) }
     var showFinalizeHandle by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    HomeContent(
+        state = state,
+        user = user,
+        isLetterMine = vm::letterOwnedByMe,
+        showNotifications = showNotifications,
+        showSwitchLocation = showSwitchLocation,
+        showFinalizeHandle = showFinalizeHandle,
+        showSearch = showSearch,
+        onCompose = onCompose,
+        onAddresses = onAddresses,
+        onContacts = onContacts,
+        onOpenLetter = onOpenLetter,
+        onEditDraft = onEditDraft,
+        onLogout = onLogout,
+        onOpenNotifications = {
+            vm.openNotifications()
+            showNotifications = true
+        },
+        onDismissNotifications = { showNotifications = false },
+        onShowSwitchLocation = { showSwitchLocation = true },
+        onDismissSwitchLocation = { showSwitchLocation = false },
+        onShowFinalizeHandle = { showFinalizeHandle = true },
+        onDismissFinalizeHandle = { showFinalizeHandle = false },
+        onShowSearch = { showSearch = true },
+        onDismissSearch = { showSearch = false },
+        onRefreshAll = vm::refreshAll,
+        onSelectTab = vm::selectTab,
+        onToggleShowHidden = vm::toggleShowHidden,
+        onSelectFolder = vm::selectFolder,
+        onCreateFolder = vm::createFolder,
+        onDeleteFolder = vm::deleteFolder,
+        onMarkAllNotificationsRead = vm::markAllNotificationsRead,
+        onSwitchCurrentAddress = { addressId ->
+            vm.switchCurrentAddress(addressId)
+            showNotifications = false
+            showSwitchLocation = false
+        },
+        onFinalizeHandle = { input, onError ->
+            vm.finalizeHandle(input, { showFinalizeHandle = false }, onError)
+        },
+        onOpenLetterFromSearch = { id ->
+            showSearch = false
+            onOpenLetter(id)
+        },
+        onDeleteDraft = vm::deleteDraft,
+        onExpedite = vm::expedite,
+        onHide = vm::hide,
+        onUnhide = vm::unhide
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeContent(
+    state: HomeUiState,
+    user: UserDto?,
+    isLetterMine: (LetterSummaryDto) -> Boolean,
+    showNotifications: Boolean,
+    showSwitchLocation: Boolean,
+    showFinalizeHandle: Boolean,
+    showSearch: Boolean,
+    onCompose: () -> Unit,
+    onAddresses: () -> Unit,
+    onContacts: () -> Unit,
+    onOpenLetter: (String) -> Unit,
+    onEditDraft: (String) -> Unit,
+    onLogout: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    onDismissNotifications: () -> Unit,
+    onShowSwitchLocation: () -> Unit,
+    onDismissSwitchLocation: () -> Unit,
+    onShowFinalizeHandle: () -> Unit,
+    onDismissFinalizeHandle: () -> Unit,
+    onShowSearch: () -> Unit,
+    onDismissSearch: () -> Unit,
+    onRefreshAll: () -> Unit,
+    onSelectTab: (HomeTab) -> Unit,
+    onToggleShowHidden: () -> Unit,
+    onSelectFolder: (String?) -> Unit,
+    onCreateFolder: (String) -> Unit,
+    onDeleteFolder: (String) -> Unit,
+    onMarkAllNotificationsRead: () -> Unit,
+    onSwitchCurrentAddress: (String) -> Unit,
+    onFinalizeHandle: (String, (String) -> Unit) -> Unit,
+    onOpenLetterFromSearch: (String) -> Unit,
+    onDeleteDraft: (String) -> Unit,
+    onExpedite: (String) -> Unit,
+    onHide: (String) -> Unit,
+    onUnhide: (String) -> Unit
+) {
+    val currentAddress = remember(user, state.addresses) {
+        state.addresses.firstOrNull { it.id == user?.currentAddressId }
+    }
 
     Scaffold(
         topBar = {
@@ -53,15 +143,12 @@ fun HomeScreen(
                 },
                 actions = {
                     BadgedBox(badge = { if (state.unread > 0) Badge { Text("${state.unread}") } }) {
-                        IconButton(onClick = {
-                            vm.openNotifications()
-                            showNotifications = true
-                        }) { Text("铃") }
+                        IconButton(onClick = onOpenNotifications) { Text("铃") }
                     }
-                    IconButton(onClick = { showSearch = true }) { Text("搜", style = MaterialTheme.typography.labelLarge) }
+                    IconButton(onClick = onShowSearch) { Text("搜", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onContacts) { Text("人", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onAddresses) { Text("址", style = MaterialTheme.typography.labelLarge) }
-                    IconButton(onClick = vm::refreshAll) { Text("⟳") }
+                    IconButton(onClick = onRefreshAll) { Text("⟳") }
                     TextButton(onClick = onLogout) { Text("退出") }
                 }
             )
@@ -79,7 +166,7 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(onClick = { showSwitchLocation = true }) { Text("切换位置") }
+                        TextButton(onClick = onShowSwitchLocation) { Text("切换位置") }
                     }
                     if (user?.handleFinalized == false) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -89,7 +176,7 @@ fun HomeScreen(
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.weight(1f)
                             )
-                            TextButton(onClick = { showFinalizeHandle = true }) { Text("设置专属 handle") }
+                            TextButton(onClick = onShowFinalizeHandle) { Text("设置专属 handle") }
                         }
                     }
                 }
@@ -97,7 +184,7 @@ fun HomeScreen(
 
             PrimaryTabRow(selectedTabIndex = state.tab.ordinal) {
                 HomeTab.entries.forEach { t ->
-                    Tab(selected = state.tab == t, onClick = { vm.selectTab(t) }, text = { Text(t.label) })
+                    Tab(selected = state.tab == t, onClick = { onSelectTab(t) }, text = { Text(t.label) })
                 }
             }
             if (state.tab == HomeTab.Inbox || state.tab == HomeTab.Outbox) {
@@ -107,7 +194,7 @@ fun HomeScreen(
                 ) {
                     FilterChip(
                         selected = state.showHidden,
-                        onClick = vm::toggleShowHidden,
+                        onClick = onToggleShowHidden,
                         label = { Text(if (state.showHidden) "查看已隐藏" else "正常视图") }
                     )
                     Spacer(Modifier.weight(1f))
@@ -120,9 +207,9 @@ fun HomeScreen(
                 FolderBar(
                     folders = state.folders,
                     selectedId = state.selectedFolderId,
-                    onSelect = vm::selectFolder,
-                    onCreate = vm::createFolder,
-                    onDelete = vm::deleteFolder
+                    onSelect = onSelectFolder,
+                    onCreate = onCreateFolder,
+                    onDelete = onDeleteFolder
                 )
             }
             if (state.loading) {
@@ -152,16 +239,16 @@ fun HomeScreen(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(state.letters, key = { it.id }) { l ->
-                        val mine = vm.letterOwnedByMe(l)
+                        val mine = isLetterMine(l)
                         val isDraft = state.tab == HomeTab.Drafts
                         LetterRow(
                             l,
                             mine = mine,
                             onClick = { if (isDraft) onEditDraft(l.id) else onOpenLetter(l.id) },
-                            onDeleteDraft = if (isDraft) { { vm.deleteDraft(l.id) } } else null,
-                            onExpedite = if (mine && l.status == "in_transit") { { vm.expedite(l.id) } } else null,
-                            onHide = if (!state.showHidden && !l.hidden) { { vm.hide(l.id) } } else null,
-                            onUnhide = if (state.showHidden || l.hidden) { { vm.unhide(l.id) } } else null
+                            onDeleteDraft = if (isDraft) { { onDeleteDraft(l.id) } } else null,
+                            onExpedite = if (mine && l.status == "in_transit") { { onExpedite(l.id) } } else null,
+                            onHide = if (!state.showHidden && !l.hidden) { { onHide(l.id) } } else null,
+                            onUnhide = if (state.showHidden || l.hidden) { { onUnhide(l.id) } } else null
                         )
                         HorizontalDivider()
                     }
@@ -173,12 +260,9 @@ fun HomeScreen(
     if (showNotifications) {
         NotificationsDialog(
             notifications = state.notifications,
-            onDismiss = { showNotifications = false },
-            onMarkAllRead = vm::markAllNotificationsRead,
-            onSwitchToAddress = { addressId ->
-                vm.switchCurrentAddress(addressId)
-                showNotifications = false
-            }
+            onDismiss = onDismissNotifications,
+            onMarkAllRead = onMarkAllNotificationsRead,
+            onSwitchToAddress = onSwitchCurrentAddress
         )
     }
 
@@ -186,36 +270,26 @@ fun HomeScreen(
         SwitchLocationDialog(
             addresses = state.addresses,
             currentId = user?.currentAddressId,
-            onDismiss = { showSwitchLocation = false },
-            onPick = { addressId ->
-                vm.switchCurrentAddress(addressId)
-                showSwitchLocation = false
-            }
+            onDismiss = onDismissSwitchLocation,
+            onPick = onSwitchCurrentAddress
         )
     }
 
     if (showFinalizeHandle) {
         FinalizeHandleDialog(
-            onDismiss = { showFinalizeHandle = false },
-            onSubmit = { input, onError ->
-                vm.finalizeHandle(
-                    value = input,
-                    onDone = { showFinalizeHandle = false },
-                    onError = onError
-                )
-            }
+            onDismiss = onDismissFinalizeHandle,
+            onSubmit = onFinalizeHandle
         )
     }
 
     if (showSearch) {
         SearchDialog(
-            onDismiss = { showSearch = false },
-            onOpen = { id -> showSearch = false; onOpenLetter(id) }
+            onDismiss = onDismissSearch,
+            onOpen = onOpenLetterFromSearch
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchDialog(
     onDismiss: () -> Unit,
@@ -223,6 +297,24 @@ private fun SearchDialog(
     vm: SearchViewModel = koinViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    SearchDialogContent(
+        state = state,
+        onDismiss = onDismiss,
+        onOpen = onOpen,
+        onQueryChange = vm::onQueryChange,
+        onSearch = vm::search
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchDialogContent(
+    state: SearchUiState,
+    onDismiss: () -> Unit,
+    onOpen: (String) -> Unit,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("搜索信件") },
@@ -231,7 +323,7 @@ private fun SearchDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = state.query,
-                        onValueChange = vm::onQueryChange,
+                        onValueChange = onQueryChange,
                         label = { Text("关键词") },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
@@ -239,7 +331,7 @@ private fun SearchDialog(
                     Spacer(Modifier.width(8.dp))
                     Button(
                         enabled = !state.busy && state.query.isNotBlank(),
-                        onClick = vm::search
+                        onClick = onSearch
                     ) { Text(if (state.busy) "搜索中" else "搜索") }
                 }
                 state.error?.let { Spacer(Modifier.height(6.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
