@@ -39,7 +39,7 @@ androidx-navigation = "2.9.0-alpha18"
 
 # 测试
 junit = "5.11.4"
-testcontainers = "1.20.4"
+testcontainers = "1.21.3"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }

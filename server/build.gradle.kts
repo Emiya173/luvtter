@@ -70,10 +70,15 @@ dependencies {
     // Test
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.ktor.client.content.negotiation)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgres)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {
     useJUnitPlatform()
+    environment("DOCKER_HOST", "unix:///var/run/docker.sock")
+    environment("DOCKER_API_VERSION", "1.41")
+    systemProperty("api.version", "1.41")
 }
