@@ -3,6 +3,7 @@ package com.letter.server.test
 import com.letter.server.module
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.sse.SSE
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.config.MapApplicationConfig
 import io.ktor.server.testing.ApplicationTestBuilder
@@ -73,6 +74,7 @@ fun runServerTest(block: suspend ApplicationTestBuilder.(client: HttpClient) -> 
         application { module() }
         val client = createClient {
             install(ContentNegotiation) { json(testJson) }
+            install(SSE)
         }
         block(client)
     }

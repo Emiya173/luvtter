@@ -22,6 +22,7 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.calllogging.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.routing.*
+import io.ktor.server.sse.SSE
 import org.koin.ktor.ext.get
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
@@ -57,6 +58,7 @@ fun Application.module() {
         ).forEach { allowMethod(it) }
     }
     install(CallLogging)
+    install(SSE)
 
     routing {
         helloRoutes()

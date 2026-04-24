@@ -1,8 +1,16 @@
 package com.letter.shared.network
 
 import com.letter.contract.dto.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
+import io.ktor.client.plugins.sse.sseSession
 import io.ktor.client.request.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.Json
+
+private val streamJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
+private val nalog = KotlinLogging.logger("com.letter.shared.notify")
 
 class NotificationApi(private val client: HttpClient) {
     suspend fun list(limit: Int = 50): List<NotificationDto> =
@@ -19,6 +27,18 @@ class NotificationApi(private val client: HttpClient) {
 
     suspend fun updatePrefs(req: NotificationPrefsDto): NotificationPrefsDto =
         client.patch("/api/v1/notifications/prefs") { setBody(req) }.unwrap()
+
+    fun stream(): Flow<NotificationDto> = flow {
+        val session = client.sseSession("/api/v1/notifications/stream")
+        session.incoming.collect { sse ->
+            if (sse.event == "notification") {
+                val data = sse.data ?: return@collect
+                runCatching { streamJson.decodeFromString(NotificationDto.serializer(), data) }
+                    .onSuccess { emit(it) }
+                    .onFailure { e -> nalog.warn(e) { "notify.stream.decode-failed data=${data.take(80)}" } }
+            }
+        }
+    }
 }
 
 class DailyRewardApi(private val client: HttpClient) {

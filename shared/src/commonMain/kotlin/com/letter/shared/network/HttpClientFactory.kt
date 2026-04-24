@@ -4,6 +4,7 @@ import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
+import io.ktor.client.plugins.sse.SSE
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -26,6 +27,7 @@ fun createHttpClient(
     install(Logging) {
         level = LogLevel.INFO
     }
+    install(SSE)
     defaultRequest {
         url(baseUrl)
         contentType(ContentType.Application.Json)

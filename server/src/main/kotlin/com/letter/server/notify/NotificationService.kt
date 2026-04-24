@@ -5,6 +5,9 @@ import com.letter.server.common.newId
 import com.letter.server.common.now
 import com.letter.server.db.*
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -12,6 +15,7 @@ import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -19,6 +23,15 @@ private val nlog = KotlinLogging.logger("com.letter.server.notify")
 
 @OptIn(ExperimentalUuidApi::class)
 object NotificationService {
+
+    private val streams = ConcurrentHashMap<Uuid, MutableSharedFlow<NotificationDto>>()
+
+    private fun bus(userId: Uuid): MutableSharedFlow<NotificationDto> =
+        streams.computeIfAbsent(userId) {
+            MutableSharedFlow(replay = 0, extraBufferCapacity = 64)
+        }
+
+    fun subscribe(userId: Uuid): SharedFlow<NotificationDto> = bus(userId).asSharedFlow()
 
     fun emit(
         userId: Uuid,
@@ -40,8 +53,10 @@ object NotificationService {
             nlog.debug { "notify.skip user=$userId type=$type (prefs off)" }
             return
         }
+        val nid = newId()
+        val ts = now()
         Notifications.insert {
-            it[Notifications.id] = newId()
+            it[Notifications.id] = nid
             it[Notifications.userId] = userId
             it[Notifications.type] = type
             it[Notifications.letterId] = letterId
@@ -49,8 +64,25 @@ object NotificationService {
             it[Notifications.addressId] = addressId
             it[Notifications.title] = title
             it[Notifications.preview] = preview
-            it[Notifications.createdAt] = now()
+            it[Notifications.createdAt] = ts
         }
+        val addrLabel = addressId?.let { aid ->
+            UserAddresses.selectAll().where { UserAddresses.id eq aid }
+                .firstOrNull()?.get(UserAddresses.label)
+        }
+        val dto = NotificationDto(
+            id = nid.toString(),
+            type = type,
+            title = title,
+            preview = preview,
+            letterId = letterId?.toString(),
+            eventId = eventId?.toString(),
+            addressId = addressId?.toString(),
+            addressLabel = addrLabel,
+            readAt = null,
+            createdAt = ts.toString()
+        )
+        bus(userId).tryEmit(dto)
         nlog.info { "notify.emit user=$userId type=$type letter=$letterId address=$addressId" }
     }
 

@@ -17,7 +17,11 @@ import kotlinx.datetime.TimeZone
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
@@ -43,6 +47,22 @@ class HomeViewModel(
             }
         }
         viewModelScope.launch { reload() }
+        viewModelScope.launch {
+            notifications.stream()
+                .retry { e ->
+                    delay(3000)
+                    true
+                }
+                .catch { /* swallow terminal errors */ }
+                .collect { dto ->
+                    _state.update { s ->
+                        s.copy(
+                            notifications = listOf(dto) + s.notifications.filterNot { it.id == dto.id },
+                            unread = s.unread + 1
+                        )
+                    }
+                }
+        }
     }
 
     fun selectTab(tab: HomeTab) {
