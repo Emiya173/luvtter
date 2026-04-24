@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.letter.app.navigation.ComposeRoute
+import com.letter.contract.dto.AddPhotoAttachmentRequest
+import com.letter.contract.dto.AddStickerRequest
 import com.letter.contract.dto.CreateDraftRequest
 import com.letter.contract.dto.LetterBodyText
 import com.letter.contract.dto.SealDraftRequest
@@ -46,6 +48,7 @@ class ComposeViewModel(
         runCatching {
             val stamps = catalog.stamps()
             val stationeries = catalog.stationeries()
+            val stickers = catalog.stickers()
             val senderAddresses = addresses.list()
             val assets = catalog.myAssets()
             val contactList = runCatching { contacts.list() }.getOrDefault(emptyList())
@@ -53,6 +56,7 @@ class ComposeViewModel(
                 it.copy(
                     stamps = stamps,
                     stationeries = stationeries,
+                    stickers = stickers,
                     senderAddresses = senderAddresses,
                     assets = assets,
                     contacts = contactList,
@@ -79,7 +83,8 @@ class ComposeViewModel(
                 fontCode = detail.fontCode,
                 sealedUntil = s.sealedUntil,
                 stampId = s.stampCode?.let { code -> prev.stamps.firstOrNull { it.code == code }?.id } ?: prev.stampId,
-                stationeryId = s.stationeryCode?.let { code -> prev.stationeries.firstOrNull { it.code == code }?.id } ?: prev.stationeryId
+                stationeryId = s.stationeryCode?.let { code -> prev.stationeries.firstOrNull { it.code == code }?.id } ?: prev.stationeryId,
+                attachments = detail.attachments
             )
         }
         if (_state.value.recipientHandle.isNotBlank()) lookupRecipient()
@@ -198,6 +203,51 @@ class ComposeViewModel(
                 _state.update { it.copy(status = "封存失败: ${e.message}") }
             }
             _state.update { it.copy(loading = false) }
+        }
+    }
+
+    fun addStickerAttachment(stickerId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(attachmentBusy = true, status = null) }
+            runCatching {
+                val draftId = upsertDraft()
+                val att = letters.addSticker(draftId, AddStickerRequest(stickerId = stickerId))
+                _state.update { it.copy(attachments = it.attachments + att) }
+            }.onFailure { e ->
+                _state.update { it.copy(status = "添加贴纸失败: ${e.message}") }
+            }
+            _state.update { it.copy(attachmentBusy = false) }
+        }
+    }
+
+    fun addPhotoAttachment(mediaUrl: String, weight: Int) {
+        viewModelScope.launch {
+            _state.update { it.copy(attachmentBusy = true, status = null) }
+            runCatching {
+                val draftId = upsertDraft()
+                val att = letters.addPhotoAttachment(
+                    draftId,
+                    AddPhotoAttachmentRequest(mediaUrl = mediaUrl, weight = weight.coerceAtLeast(1))
+                )
+                _state.update { it.copy(attachments = it.attachments + att) }
+            }.onFailure { e ->
+                _state.update { it.copy(status = "添加图片失败: ${e.message}") }
+            }
+            _state.update { it.copy(attachmentBusy = false) }
+        }
+    }
+
+    fun removeAttachment(attachmentId: String) {
+        val draftId = _state.value.draftId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(attachmentBusy = true, status = null) }
+            runCatching {
+                letters.deleteAttachment(draftId, attachmentId)
+                _state.update { it.copy(attachments = it.attachments.filterNot { a -> a.id == attachmentId }) }
+            }.onFailure { e ->
+                _state.update { it.copy(status = "移除附件失败: ${e.message}") }
+            }
+            _state.update { it.copy(attachmentBusy = false) }
         }
     }
 

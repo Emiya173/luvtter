@@ -20,10 +20,14 @@ fun ComposeScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showSealDialog by remember { mutableStateOf(false) }
+    var showStickerDialog by remember { mutableStateOf(false) }
+    var showPhotoDialog by remember { mutableStateOf(false) }
     ComposeContent(
         state = state,
         isReply = vm.isReply,
         showSealDialog = showSealDialog,
+        showStickerDialog = showStickerDialog,
+        showPhotoDialog = showPhotoDialog,
         onCancel = onCancel,
         onPickContact = vm::lookupRecipientFromContact,
         onRecipientHandleChange = vm::onRecipientHandleChange,
@@ -38,7 +42,14 @@ fun ComposeScreen(
         onSend = { vm.send(onSent) },
         onShowSealDialog = { showSealDialog = true },
         onDismissSealDialog = { showSealDialog = false },
-        onSeal = { iso -> vm.sealUntil(iso); showSealDialog = false }
+        onSeal = { iso -> vm.sealUntil(iso); showSealDialog = false },
+        onShowStickerDialog = { showStickerDialog = true },
+        onDismissStickerDialog = { showStickerDialog = false },
+        onPickSticker = { id -> vm.addStickerAttachment(id); showStickerDialog = false },
+        onShowPhotoDialog = { showPhotoDialog = true },
+        onDismissPhotoDialog = { showPhotoDialog = false },
+        onAddPhoto = { url, w -> vm.addPhotoAttachment(url, w); showPhotoDialog = false },
+        onRemoveAttachment = vm::removeAttachment
     )
 }
 
@@ -48,6 +59,8 @@ private fun ComposeContent(
     state: ComposeUiState,
     isReply: Boolean,
     showSealDialog: Boolean,
+    showStickerDialog: Boolean,
+    showPhotoDialog: Boolean,
     onCancel: () -> Unit,
     onPickContact: (handle: String) -> Unit,
     onRecipientHandleChange: (String) -> Unit,
@@ -62,7 +75,14 @@ private fun ComposeContent(
     onSend: () -> Unit,
     onShowSealDialog: () -> Unit,
     onDismissSealDialog: () -> Unit,
-    onSeal: (String) -> Unit
+    onSeal: (String) -> Unit,
+    onShowStickerDialog: () -> Unit,
+    onDismissStickerDialog: () -> Unit,
+    onPickSticker: (String) -> Unit,
+    onShowPhotoDialog: () -> Unit,
+    onDismissPhotoDialog: () -> Unit,
+    onAddPhoto: (String, Int) -> Unit,
+    onRemoveAttachment: (String) -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -159,6 +179,54 @@ private fun ComposeContent(
                 )
             }
 
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("附件", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                val capacity = state.stampCapacity
+                val weightText = if (capacity != null) "${state.totalWeight}/${capacity}g" else "${state.totalWeight}g"
+                val overWeight = capacity != null && state.totalWeight > capacity
+                Text(
+                    weightText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (overWeight) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            if (state.attachments.isEmpty()) {
+                Text("尚未添加附件", style = MaterialTheme.typography.bodySmall)
+            } else {
+                state.attachments.forEach { att ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val label = when (att.attachmentType) {
+                            "sticker" -> state.stickers.firstOrNull { it.id == att.stickerId }?.name
+                                ?: "贴纸"
+                            "photo" -> "图片 · ${att.mediaUrl ?: "?"}"
+                            else -> att.attachmentType
+                        }
+                        Text("· $label · ${att.weight}g", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        TextButton(
+                            enabled = !state.attachmentBusy,
+                            onClick = { onRemoveAttachment(att.id) }
+                        ) { Text("移除") }
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row {
+                OutlinedButton(
+                    enabled = !state.attachmentBusy && state.stickers.isNotEmpty(),
+                    onClick = onShowStickerDialog
+                ) { Text("添加贴纸") }
+                Spacer(Modifier.width(8.dp))
+                OutlinedButton(
+                    enabled = !state.attachmentBusy,
+                    onClick = onShowPhotoDialog
+                ) { Text("添加图片") }
+            }
+
             state.sealedUntil?.let {
                 Spacer(Modifier.height(8.dp))
                 Text("封存中：$it（期间不可编辑/寄出）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
@@ -198,6 +266,19 @@ private fun ComposeContent(
             onConfirm = onSeal
         )
     }
+    if (showStickerDialog) {
+        StickerPickerDialog(
+            stickers = state.stickers,
+            onDismiss = onDismissStickerDialog,
+            onPick = onPickSticker
+        )
+    }
+    if (showPhotoDialog) {
+        AddPhotoDialog(
+            onDismiss = onDismissPhotoDialog,
+            onConfirm = onAddPhoto
+        )
+    }
 }
 
 @Composable
@@ -232,6 +313,64 @@ private fun SealDraftDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) 
                     onConfirm(target.toString())
                 }
             ) { Text("封存") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+@Composable
+private fun StickerPickerDialog(
+    stickers: List<com.letter.contract.dto.StickerDto>,
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择贴纸") },
+        text = {
+            Column {
+                Text("贴纸会计入信件重量。", style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.height(6.dp))
+                FlowChips(
+                    items = stickers.map { Triple(it.id, "${it.name} · ${it.weight}g", false) },
+                    onSelect = onPick
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+@Composable
+private fun AddPhotoDialog(onDismiss: () -> Unit, onConfirm: (String, Int) -> Unit) {
+    var mediaUrl by remember { mutableStateOf("") }
+    var weightText by remember { mutableStateOf("10") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("添加图片") },
+        text = {
+            Column {
+                Text("输入图片 URL（上传功能待接入）。重量以克计。", style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = mediaUrl, onValueChange = { mediaUrl = it },
+                    label = { Text("图片 URL") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = weightText,
+                    onValueChange = { weightText = it.filter { c -> c.isDigit() } },
+                    label = { Text("重量 (g)") }, singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = mediaUrl.isNotBlank() && (weightText.toIntOrNull()?.let { it > 0 } == true),
+                onClick = { onConfirm(mediaUrl.trim(), weightText.toInt()) }
+            ) { Text("添加") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )

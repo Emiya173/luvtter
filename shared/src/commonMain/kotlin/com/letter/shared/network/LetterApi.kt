@@ -96,4 +96,21 @@ class LetterApi(private val client: HttpClient) {
 
     suspend fun byFolder(folderId: String, limit: Int = 50): List<LetterSummaryDto> =
         client.get("/api/v1/folders/$folderId/letters") { url { parameters.append("limit", limit.toString()) } }.unwrap()
+
+    suspend fun listAttachments(draftId: String): List<AttachmentDto> =
+        client.get("/api/v1/letters/drafts/$draftId/attachments").unwrap()
+
+    suspend fun addPhotoAttachment(draftId: String, req: AddPhotoAttachmentRequest): AttachmentDto {
+        log.info { "letters.addPhoto draft=$draftId weight=${req.weight}" }
+        return client.post("/api/v1/letters/drafts/$draftId/attachments") { setBody(req) }.unwrap()
+    }
+
+    suspend fun addSticker(draftId: String, req: AddStickerRequest): AttachmentDto {
+        log.info { "letters.addSticker draft=$draftId sticker=${req.stickerId}" }
+        return client.post("/api/v1/letters/drafts/$draftId/stickers") { setBody(req) }.unwrap()
+    }
+
+    suspend fun deleteAttachment(draftId: String, attachmentId: String) {
+        client.delete("/api/v1/letters/drafts/$draftId/attachments/$attachmentId").ensureSuccess()
+    }
 }

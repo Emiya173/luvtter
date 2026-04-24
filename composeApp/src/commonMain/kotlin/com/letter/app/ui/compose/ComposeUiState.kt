@@ -1,11 +1,13 @@
 package com.letter.app.ui.compose
 
 import com.letter.contract.dto.AddressDto
+import com.letter.contract.dto.AttachmentDto
 import com.letter.contract.dto.ContactDto
 import com.letter.contract.dto.MyAssetsDto
 import com.letter.contract.dto.RecipientAddressDto
 import com.letter.contract.dto.StampDto
 import com.letter.contract.dto.StationeryDto
+import com.letter.contract.dto.StickerDto
 
 data class ComposeUiState(
     val recipientHandle: String = "",
@@ -26,13 +28,19 @@ data class ComposeUiState(
     val senderAddressId: String? = null,
     val contacts: List<ContactDto> = emptyList(),
 
+    val stickers: List<StickerDto> = emptyList(),
+    val attachments: List<AttachmentDto> = emptyList(),
+
     val draftId: String? = null,
     val sealedUntil: String? = null,
     val loading: Boolean = false,
+    val attachmentBusy: Boolean = false,
     val status: String? = null
 ) {
     val canSaveDraft: Boolean get() = !loading && recipientHandle.isNotBlank() && content.isNotBlank()
     val canSend: Boolean get() = canSaveDraft && stampId != null
+    val totalWeight: Int get() = attachments.sumOf { it.weight }
+    val stampCapacity: Int? get() = stampId?.let { id -> stamps.firstOrNull { it.id == id }?.weightCapacity }
 }
 
 internal val FONT_OPTIONS: List<Pair<String?, String>> = listOf(
