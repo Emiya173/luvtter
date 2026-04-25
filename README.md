@@ -193,7 +193,8 @@ alias(libs.plugins.kotlinMultiplatform)
 - 寄送:距离计算、等级化送达时间、拟真事件、加速(调试)
 - 收件:按地址归属、`delivered/read` 状态、**SSE 实时通知推送(含 ping 心跳 + 瞬时信号双轨,upload_done/letter_read 不入库直接广播)**、搜索、收藏、分类夹
 - 基础设施:Koin 模块化(服务端按域 auth/user/stamp/mail/storage)、客户端 `koin-compose-viewmodel`、
-  logback 日志滚动、**testcontainers-postgres + testcontainers-minio 集成测试(auth / send / attachment / segment / sse / sessions / media-upload / sse-heartbeat-signals 八条 happy path,共 14 用例)**
+  logback 日志滚动、**testcontainers-postgres + testcontainers-minio 集成测试(auth / send / attachment / segment / sse / sessions / media-upload / sse-heartbeat-signals / search 九条 happy path,共 15 用例)**
+- 搜索:**全文检索 tsvector + 中文 bigram(`letter_bigram` plpgsql 函数 + `letter_contents` 触发器维护 `index_tsv` GIN 索引,`/api/v1/letters/search?q=...` 走 `index_tsv @@ letter_bigram_query(?)`)**
 
 **后续路线**参考《信件应用-技术设计文档.md》第六章:
 

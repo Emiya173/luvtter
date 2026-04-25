@@ -18,14 +18,13 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.VarCharColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.like
-import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.lessEq
@@ -420,11 +419,18 @@ class LetterService(
     fun search(userId: Uuid, query: String, limit: Int = 50): List<LetterSummaryDto> = transaction {
         val q = query.trim()
         if (q.isBlank()) return@transaction emptyList()
-        val pattern = "%" + q.lowercase().replace("%", "\\%").replace("_", "\\_") + "%"
-        val contentIds = LetterContents.selectAll()
-            .where { LetterContents.indexText.lowerCase() like pattern }
-            .limit(limit * 4)
-            .map { it[LetterContents.letterId] }
+        val cap = limit * 4
+        val contentIds = mutableListOf<Uuid>()
+        exec(
+            "SELECT letter_id FROM letter_contents " +
+                "WHERE index_tsv @@ letter_bigram_query(?) " +
+                "LIMIT $cap",
+            listOf(VarCharColumnType() to q)
+        ) { rs ->
+            while (rs.next()) {
+                contentIds += Uuid.parse(rs.getObject(1).toString())
+            }
+        }
         if (contentIds.isEmpty()) return@transaction emptyList()
         Letters.selectAll()
             .where {
