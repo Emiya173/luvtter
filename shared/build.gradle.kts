@@ -6,7 +6,7 @@ plugins {
 
 kotlin {
     android {
-        namespace = "com.letter.shared"
+        namespace = "com.luvtter.shared"
         compileSdk = 36
         minSdk = 26
     }

@@ -27,7 +27,7 @@
     <logger name="com.zaxxer.hikari" level="INFO"/>
     <logger name="Exposed" level="INFO"/>
 
-    <logger name="com.letter" level="DEBUG"/>
+    <logger name="com.luvtter" level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="STDOUT"/>

@@ -1,7 +1,7 @@
 ktor:
   application:
     modules:
-      - com.letter.server.ApplicationKt.module
+      - com.luvtter.server.ApplicationKt.module
   deployment:
     port: 8080
     host: 0.0.0.0

@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.letter.app.android"
+    namespace = "com.luvtter.app.android"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.letter.app"
+        applicationId = "com.luvtter.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

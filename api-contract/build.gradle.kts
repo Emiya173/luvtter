@@ -10,7 +10,7 @@ kotlin {
     jvm()
 
     android {
-        namespace = "com.letter.contract"
+        namespace = "com.luvtter.contract"
         compileSdk = 36
         minSdk = 26
     }

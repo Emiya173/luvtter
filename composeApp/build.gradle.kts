@@ -10,7 +10,7 @@ plugins {
 
 kotlin {
     android {
-        namespace = "com.letter.app"
+        namespace = "com.luvtter.app"
         compileSdk = 36
         minSdk = 26
     }
@@ -69,7 +69,7 @@ kotlin {
 
 compose.desktop {
     application {
-        mainClass = "com.letter.app.MainKt"
+        mainClass = "com.luvtter.app.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "letter-app"
