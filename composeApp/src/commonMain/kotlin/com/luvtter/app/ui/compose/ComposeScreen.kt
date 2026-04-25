@@ -24,13 +24,11 @@ fun ComposeScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     var showSealDialog by remember { mutableStateOf(false) }
     var showStickerDialog by remember { mutableStateOf(false) }
-    var showPhotoDialog by remember { mutableStateOf(false) }
     ComposeContent(
         state = state,
         isReply = vm.isReply,
         showSealDialog = showSealDialog,
         showStickerDialog = showStickerDialog,
-        showPhotoDialog = showPhotoDialog,
         onCancel = onCancel,
         onPickContact = vm::lookupRecipientFromContact,
         onRecipientHandleChange = vm::onRecipientHandleChange,
@@ -52,9 +50,7 @@ fun ComposeScreen(
         onShowStickerDialog = { showStickerDialog = true },
         onDismissStickerDialog = { showStickerDialog = false },
         onPickSticker = { id -> vm.addStickerAttachment(id); showStickerDialog = false },
-        onShowPhotoDialog = { showPhotoDialog = true },
-        onDismissPhotoDialog = { showPhotoDialog = false },
-        onAddPhoto = { url, w -> vm.addPhotoAttachment(url, w); showPhotoDialog = false },
+        onPickPhoto = vm::pickAndUploadPhoto,
         onRemoveAttachment = vm::removeAttachment
     )
 }
@@ -66,7 +62,6 @@ private fun ComposeContent(
     isReply: Boolean,
     showSealDialog: Boolean,
     showStickerDialog: Boolean,
-    showPhotoDialog: Boolean,
     onCancel: () -> Unit,
     onPickContact: (handle: String) -> Unit,
     onRecipientHandleChange: (String) -> Unit,
@@ -88,9 +83,7 @@ private fun ComposeContent(
     onShowStickerDialog: () -> Unit,
     onDismissStickerDialog: () -> Unit,
     onPickSticker: (String) -> Unit,
-    onShowPhotoDialog: () -> Unit,
-    onDismissPhotoDialog: () -> Unit,
-    onAddPhoto: (String, Int) -> Unit,
+    onPickPhoto: () -> Unit,
     onRemoveAttachment: (String) -> Unit
 ) {
     Scaffold(
@@ -225,7 +218,10 @@ private fun ComposeContent(
                         val label = when (att.attachmentType) {
                             "sticker" -> state.stickers.firstOrNull { it.id == att.stickerId }?.name
                                 ?: "贴纸"
-                            "photo" -> "图片 · ${att.mediaUrl ?: "?"}"
+                            "photo" -> {
+                                val key = att.objectKey?.substringAfterLast('/')
+                                "图片 · ${key ?: att.mediaUrl ?: "?"}"
+                            }
                             else -> att.attachmentType
                         }
                         Text("· $label · ${att.weight}g", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
@@ -245,8 +241,8 @@ private fun ComposeContent(
                 Spacer(Modifier.width(8.dp))
                 OutlinedButton(
                     enabled = !state.attachmentBusy,
-                    onClick = onShowPhotoDialog
-                ) { Text("添加图片") }
+                    onClick = onPickPhoto
+                ) { Text(if (state.attachmentBusy) "处理中..." else "选图并上传") }
             }
 
             state.sealedUntil?.let {
@@ -293,12 +289,6 @@ private fun ComposeContent(
             stickers = state.stickers,
             onDismiss = onDismissStickerDialog,
             onPick = onPickSticker
-        )
-    }
-    if (showPhotoDialog) {
-        AddPhotoDialog(
-            onDismiss = onDismissPhotoDialog,
-            onConfirm = onAddPhoto
         )
     }
 }
@@ -360,40 +350,6 @@ private fun StickerPickerDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
-    )
-}
-
-@Composable
-private fun AddPhotoDialog(onDismiss: () -> Unit, onConfirm: (String, Int) -> Unit) {
-    var mediaUrl by remember { mutableStateOf("") }
-    var weightText by remember { mutableStateOf("10") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("添加图片") },
-        text = {
-            Column {
-                Text("输入图片 URL（上传功能待接入）。重量以克计。", style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = mediaUrl, onValueChange = { mediaUrl = it },
-                    label = { Text("图片 URL") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = weightText,
-                    onValueChange = { weightText = it.filter { c -> c.isDigit() } },
-                    label = { Text("重量 (g)") }, singleLine = true
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = mediaUrl.isNotBlank() && (weightText.toIntOrNull()?.let { it > 0 } == true),
-                onClick = { onConfirm(mediaUrl.trim(), weightText.toInt()) }
-            ) { Text("添加") }
-        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
 }

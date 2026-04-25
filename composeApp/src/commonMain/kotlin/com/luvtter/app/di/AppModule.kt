@@ -17,11 +17,15 @@ import com.luvtter.shared.network.CatalogApi
 import com.luvtter.shared.network.ContactApi
 import com.luvtter.shared.network.DailyRewardApi
 import com.luvtter.shared.network.FolderApi
+import com.luvtter.app.platform.FilePicker
 import com.luvtter.shared.network.LetterApi
 import com.luvtter.shared.network.MeApi
+import com.luvtter.shared.network.MediaApi
 import com.luvtter.shared.network.NotificationApi
 import com.luvtter.shared.network.createHttpClient
+import com.luvtter.shared.network.createRawHttpClient
 import io.ktor.client.HttpClient
+import org.koin.core.qualifier.named
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
@@ -32,6 +36,7 @@ fun appModule(apiBaseUrl: String) = module {
         val tokens: TokenStore = get()
         createHttpClient(apiBaseUrl) { tokens.accessToken() }
     }
+    single<HttpClient>(named("raw")) { createRawHttpClient() }
 
     single { AuthApi(get()) }
     single { MeApi(get()) }
@@ -42,6 +47,8 @@ fun appModule(apiBaseUrl: String) = module {
     single { FolderApi(get()) }
     single { NotificationApi(get()) }
     single { DailyRewardApi(get()) }
+    single { MediaApi(client = get(), rawClient = get(named("raw"))) }
+    single { FilePicker() }
 
     viewModelOf(::LoginViewModel)
     viewModelOf(::RegisterViewModel)
@@ -52,7 +59,7 @@ fun appModule(apiBaseUrl: String) = module {
     viewModelOf(::SessionsViewModel)
 
     viewModel { (handle: SavedStateHandle) ->
-        ComposeViewModel(handle, get(), get(), get(), get())
+        ComposeViewModel(handle, get(), get(), get(), get(), get(), get())
     }
     viewModel { (handle: SavedStateHandle) ->
         LetterDetailViewModel(handle, get(), get(), get())

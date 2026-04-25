@@ -12,6 +12,14 @@ import kotlinx.serialization.json.Json
 
 expect fun platformHttpClient(): HttpClient
 
+/**
+ * 用于直传到对象存储的"裸"客户端：不带 JWT、不带 baseUrl、不带 ContentNegotiation。
+ * 直接 PUT 字节到 MinIO 预签名 URL 时用。
+ */
+fun createRawHttpClient(): HttpClient = platformHttpClient().config {
+    install(Logging) { level = LogLevel.INFO }
+}
+
 fun createHttpClient(
     baseUrl: String,
     tokenProvider: () -> String? = { null }

@@ -12,10 +12,12 @@ import com.luvtter.contract.dto.LetterBodyText
 import com.luvtter.contract.dto.SealDraftRequest
 import com.luvtter.contract.dto.TextSegment
 import com.luvtter.contract.dto.UpdateDraftRequest
+import com.luvtter.app.platform.FilePicker
 import com.luvtter.shared.network.AddressApi
 import com.luvtter.shared.network.CatalogApi
 import com.luvtter.shared.network.ContactApi
 import com.luvtter.shared.network.LetterApi
+import com.luvtter.shared.network.MediaApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +29,9 @@ class ComposeViewModel(
     private val addresses: AddressApi,
     private val contacts: ContactApi,
     private val catalog: CatalogApi,
-    private val letters: LetterApi
+    private val letters: LetterApi,
+    private val media: MediaApi,
+    private val filePicker: FilePicker,
 ) : ViewModel() {
 
     private val route: ComposeRoute = savedStateHandle.toRoute()
@@ -248,16 +252,33 @@ class ComposeViewModel(
         }
     }
 
-    fun addPhotoAttachment(mediaUrl: String, weight: Int) {
+    /**
+     * 选图 → MinIO 直传 → addPhoto(objectKey)。
+     * 重量按 ⌈sizeKB/10⌉ 估算 (10KB ~ 1g),最少 1g。客户端可手动调整逻辑后续再细化。
+     */
+    fun pickAndUploadPhoto() {
         viewModelScope.launch {
-            _state.update { it.copy(attachmentBusy = true, status = null) }
+            _state.update { it.copy(attachmentBusy = true, status = "选择图片中...") }
             runCatching {
+                val picked = filePicker.pickImage() ?: run {
+                    _state.update { it.copy(attachmentBusy = false, status = null) }
+                    return@launch
+                }
+                _state.update { it.copy(status = "上传中 ${picked.filename}...") }
                 val draftId = upsertDraft()
+                val key = media.uploadPhoto(picked.filename, picked.contentType, picked.bytes)
+                val sizeKB = (picked.sizeBytes + 1023) / 1024
+                val weight = ((sizeKB + 9) / 10).toInt().coerceAtLeast(1)
                 val att = letters.addPhotoAttachment(
                     draftId,
-                    AddPhotoAttachmentRequest(mediaUrl = mediaUrl, weight = weight.coerceAtLeast(1))
+                    AddPhotoAttachmentRequest(objectKey = key, weight = weight)
                 )
-                _state.update { it.copy(attachments = it.attachments + att) }
+                _state.update {
+                    it.copy(
+                        attachments = it.attachments + att,
+                        status = "已添加 ${picked.filename} (${weight}g)"
+                    )
+                }
             }.onFailure { e ->
                 _state.update { it.copy(status = "添加图片失败: ${e.message}") }
             }
