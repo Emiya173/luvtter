@@ -71,7 +71,10 @@ data class LetterSummaryDto(
     val replyToLetterId: String? = null,
     val preview: String? = null,
     val recipientAddressLabel: String? = null,
-    val hidden: Boolean = false
+    val hidden: Boolean = false,
+    /** 附件计数,供列表页显示 chip(详情页才返回完整 attachments 列表)。 */
+    val photoCount: Int = 0,
+    val stickerCount: Int = 0
 )
 
 @Serializable

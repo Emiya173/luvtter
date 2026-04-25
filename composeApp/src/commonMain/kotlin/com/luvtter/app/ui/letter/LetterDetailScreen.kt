@@ -2,17 +2,23 @@ package com.luvtter.app.ui.letter
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
+import com.luvtter.contract.dto.AttachmentDto
+import com.luvtter.contract.dto.StickerDto
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -107,6 +113,15 @@ private fun LetterDetailContent(
                 Text(text, style = MaterialTheme.typography.bodyLarge)
             }
 
+            if (d.attachments.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                Text("附件", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(8.dp))
+                AttachmentsSection(d.attachments, state.stickers)
+            }
+
             if (state.events.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
                 HorizontalDivider()
@@ -160,5 +175,50 @@ private fun LetterDetailContent(
             },
             confirmButton = { TextButton(onClick = onDismissFolderPicker) { Text("关闭") } }
         )
+    }
+}
+
+@Composable
+private fun AttachmentsSection(
+    attachments: List<AttachmentDto>,
+    stickers: List<StickerDto>
+) {
+    val photos = attachments.filter { it.attachmentType == "photo" }
+    val stickerAtts = attachments.filter { it.attachmentType == "sticker" }
+
+    if (stickerAtts.isNotEmpty()) {
+        Text("贴纸", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        stickerAtts.forEach { att ->
+            val name = stickers.firstOrNull { it.id == att.stickerId }?.name ?: "贴纸"
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                Text("· $name · ${att.weight}g", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+
+    if (photos.isNotEmpty()) {
+        Text("图片", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        photos.forEach { att ->
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                val url = att.mediaUrl
+                if (url != null) {
+                    AsyncImage(
+                        model = url,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                } else {
+                    Text("（缺少图片地址）", style = MaterialTheme.typography.bodySmall)
+                }
+                Text("${att.weight}g", style = MaterialTheme.typography.labelSmall)
+            }
+        }
     }
 }

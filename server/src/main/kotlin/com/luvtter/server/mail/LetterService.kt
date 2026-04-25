@@ -610,6 +610,10 @@ class LetterService(
         }
         val hidden = if (isSenderViewing) row[Letters.senderHiddenAt] != null
         else row[Letters.recipientHiddenAt] != null
+        val attCounts = LetterAttachments.selectAll()
+            .where { LetterAttachments.letterId eq row[Letters.id] }
+            .groupingBy { it[LetterAttachments.attachmentType] }
+            .eachCount()
         return LetterSummaryDto(
             id = row[Letters.id].toString(),
             status = visibleStatus,
@@ -628,7 +632,9 @@ class LetterService(
             isFavorite = isFavorite,
             replyToLetterId = row[Letters.replyToLetterId]?.toString(),
             recipientAddressLabel = recipientAddressLabel,
-            hidden = hidden
+            hidden = hidden,
+            photoCount = attCounts["photo"] ?: 0,
+            stickerCount = attCounts["sticker"] ?: 0
         )
     }
 

@@ -24,6 +24,11 @@ import com.luvtter.app.ui.home.HomeScreen
 import com.luvtter.app.ui.letter.LetterDetailScreen
 import com.luvtter.app.ui.sessions.SessionsScreen
 import com.luvtter.shared.auth.TokenStore
+import com.luvtter.shared.network.createRawHttpClient
+import coil3.ImageLoader
+import coil3.compose.setSingletonImageLoaderFactory
+import coil3.network.ktor3.KtorNetworkFetcherFactory
+import coil3.PlatformContext
 import org.koin.compose.KoinApplication
 import org.koin.compose.koinInject
 
@@ -34,6 +39,11 @@ fun App() {
     KoinApplication(application = {
         modules(appModule(apiBaseUrl))
     }) {
+        setSingletonImageLoaderFactory { ctx: PlatformContext ->
+            ImageLoader.Builder(ctx)
+                .components { add(KtorNetworkFetcherFactory(httpClient = createRawHttpClient())) }
+                .build()
+        }
         MaterialTheme {
             val nav = rememberNavController()
             val tokens: TokenStore = koinInject()

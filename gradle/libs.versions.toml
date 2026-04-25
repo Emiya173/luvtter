@@ -32,6 +32,9 @@ argon2 = "2.11"
 # 对象存储
 minio = "8.5.14"
 
+# 图片加载 (KMP)
+coil = "3.0.4"
+
 # Android 相关
 androidx-activity-compose = "1.10.0"
 androidx-lifecycle = "2.9.0"
@@ -91,6 +94,9 @@ koin-compose-viewmodel-navigation = { module = "io.insert-koin:koin-compose-view
 
 argon2 = { module = "de.mkammerer:argon2-jvm", version.ref = "argon2" }
 minio = { module = "io.minio:minio", version.ref = "minio" }
+
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
 androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "androidx-lifecycle" }

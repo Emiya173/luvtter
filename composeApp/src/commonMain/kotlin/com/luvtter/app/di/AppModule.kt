@@ -62,6 +62,6 @@ fun appModule(apiBaseUrl: String) = module {
         ComposeViewModel(handle, get(), get(), get(), get(), get(), get())
     }
     viewModel { (handle: SavedStateHandle) ->
-        LetterDetailViewModel(handle, get(), get(), get())
+        LetterDetailViewModel(handle, get(), get(), get(), get())
     }
 }

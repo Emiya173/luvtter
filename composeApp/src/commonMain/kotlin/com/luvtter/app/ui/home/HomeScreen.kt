@@ -447,8 +447,20 @@ private fun LetterRow(
         }
         Spacer(Modifier.height(4.dp))
         val time = l.deliveredAt ?: l.deliveryAt ?: l.sentAt
-        time?.let {
-            Text(it.take(19).replace('T', ' '), style = MaterialTheme.typography.labelSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            time?.let {
+                Text(it.take(19).replace('T', ' '), style = MaterialTheme.typography.labelSmall)
+            }
+            if (l.photoCount > 0 || l.stickerCount > 0) {
+                Spacer(Modifier.weight(1f))
+                if (l.photoCount > 0) {
+                    Text("📷 ${l.photoCount}", style = MaterialTheme.typography.labelSmall)
+                }
+                if (l.photoCount > 0 && l.stickerCount > 0) Spacer(Modifier.width(8.dp))
+                if (l.stickerCount > 0) {
+                    Text("🏷 ${l.stickerCount}", style = MaterialTheme.typography.labelSmall)
+                }
+            }
         }
         if (onExpedite != null || onHide != null || onUnhide != null || onDeleteDraft != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {

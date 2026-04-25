@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.luvtter.app.navigation.LetterDetailRoute
 import com.luvtter.shared.auth.TokenStore
+import com.luvtter.shared.network.CatalogApi
 import com.luvtter.shared.network.FolderApi
 import com.luvtter.shared.network.LetterApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +19,7 @@ class LetterDetailViewModel(
     savedStateHandle: SavedStateHandle,
     private val letters: LetterApi,
     private val folders: FolderApi,
+    private val catalog: CatalogApi,
     private val tokens: TokenStore
 ) : ViewModel() {
 
@@ -35,7 +37,10 @@ class LetterDetailViewModel(
             val detail = letters.detail(letterId)
             val events = runCatching { letters.events(letterId) }.getOrDefault(emptyList())
             val folderList = runCatching { folders.list() }.getOrDefault(emptyList())
-            _state.update { it.copy(detail = detail, events = events, folders = folderList) }
+            val stickerList = runCatching { catalog.stickers() }.getOrDefault(emptyList())
+            _state.update {
+                it.copy(detail = detail, events = events, folders = folderList, stickers = stickerList)
+            }
             if (detail.summary.status == "delivered") runCatching { letters.markRead(letterId) }
         } catch (e: Exception) {
             _state.update { it.copy(error = e.message) }
