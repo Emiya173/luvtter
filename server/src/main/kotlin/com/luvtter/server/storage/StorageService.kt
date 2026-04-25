@@ -18,11 +18,16 @@ private val ALLOWED_IMAGE_TYPES = setOf(
     "image/jpeg", "image/png", "image/webp", "image/gif"
 )
 
+private val ALLOWED_SCAN_TYPES = setOf(
+    "image/jpeg", "image/png", "image/webp", "application/pdf"
+)
+
 private val EXTENSIONS = mapOf(
     "image/jpeg" to "jpg",
     "image/png" to "png",
     "image/webp" to "webp",
-    "image/gif" to "gif"
+    "image/gif" to "gif",
+    "application/pdf" to "pdf"
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -60,6 +65,21 @@ class StorageService(private val cfg: StorageConfig) {
     fun newPhotoKey(userId: Uuid, contentType: String): String {
         val ext = EXTENSIONS[contentType] ?: "bin"
         return "users/$userId/photos/${newId()}.$ext"
+    }
+
+    fun validateScanUpload(contentType: String, sizeBytes: Long) {
+        if (contentType !in ALLOWED_SCAN_TYPES) {
+            throw ValidationException("不支持的扫描类型: $contentType (仅 image/jpeg, image/png, image/webp, application/pdf)")
+        }
+        if (sizeBytes <= 0) throw ValidationException("文件大小必须为正")
+        if (sizeBytes > cfg.maxScanBytes) {
+            throw ValidationException("扫描件超过上限 ${cfg.maxScanBytes / (1024 * 1024)}MB")
+        }
+    }
+
+    fun newScanKey(userId: Uuid, contentType: String): String {
+        val ext = EXTENSIONS[contentType] ?: "bin"
+        return "users/$userId/scans/${newId()}.$ext"
     }
 
     fun isUserOwnedKey(userId: Uuid, key: String): Boolean =

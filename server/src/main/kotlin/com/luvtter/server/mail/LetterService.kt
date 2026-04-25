@@ -65,12 +65,20 @@ class LetterService(
             it[createdAt] = ts
             it[updatedAt] = ts
         }
+        if (req.contentType == "scan") {
+            val key = req.scanObjectKey
+                ?: throw ValidationException("contentType=scan 时必须传 scanObjectKey")
+            if (!storage.isUserOwnedKey(senderId, key)) {
+                throw ValidationException("scanObjectKey 不属于当前用户")
+            }
+        }
         LetterContents.insert {
             it[letterId] = id
             it[contentType] = req.contentType
             it[fontCode] = req.fontCode
             it[bodyJson] = req.body?.let { b -> jsonCodec.encodeToJsonElement<LetterBodyText>(b) }
             it[bodyUrl] = req.bodyUrl
+            it[scanObjectKey] = req.scanObjectKey
             it[createdAt] = ts
             it[updatedAt] = ts
         }
@@ -119,6 +127,12 @@ class LetterService(
             req.fontCode?.let { v -> it[fontCode] = v }
             req.body?.let { b -> it[bodyJson] = jsonCodec.encodeToJsonElement<LetterBodyText>(b) }
             req.bodyUrl?.let { v -> it[bodyUrl] = v }
+            req.scanObjectKey?.let { v ->
+                if (!storage.isUserOwnedKey(senderId, v)) {
+                    throw ValidationException("scanObjectKey 不属于当前用户")
+                }
+                it[scanObjectKey] = v
+            }
             it[updatedAt] = ts
         }
         loadDetail(id, senderId)
@@ -564,12 +578,16 @@ class LetterService(
         val body = bodyElement?.let {
             runCatching { jsonCodec.decodeFromJsonElement(LetterBodyText.serializer(), it) }.getOrNull()
         }
+        // 扫描信:每次按 scan_object_key 重签发短期 GET URL,覆盖 body_url 字段返回前端
+        val resolvedBodyUrl = content[LetterContents.scanObjectKey]
+            ?.let { runCatching { storage.presignGet(it) }.getOrNull() }
+            ?: content[LetterContents.bodyUrl]
         return LetterDetailDto(
             summary = buildSummary(letterRow, viewerId),
             contentType = content[LetterContents.contentType],
             fontCode = content[LetterContents.fontCode],
             body = body,
-            bodyUrl = content[LetterContents.bodyUrl],
+            bodyUrl = resolvedBodyUrl,
             attachments = attachments
         )
     }

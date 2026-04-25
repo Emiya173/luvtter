@@ -198,6 +198,7 @@ object LetterContents : Table("letter_contents") {
     val fontCode = varchar("font_code", 32).nullable()
     val bodyJson = jsonb<JsonElement>("body_json", lenientJson).nullable()
     val bodyUrl = text("body_url").nullable()
+    val scanObjectKey = text("scan_object_key").nullable()
     val indexText = text("index_text").nullable()
     val createdAt = timestampWithTimeZone("created_at")
     val updatedAt = timestampWithTimeZone("updated_at")

@@ -25,6 +25,8 @@ data class CreateDraftRequest(
     val contentType: String = "text", // text | handwriting | scan
     val body: LetterBodyText? = null,
     val bodyUrl: String? = null,
+    /** 当 contentType=scan 时引用 MinIO 上的扫描原图/PDF 对象 key。 */
+    val scanObjectKey: String? = null,
     val replyToLetterId: String? = null
 )
 
@@ -38,7 +40,8 @@ data class UpdateDraftRequest(
     val stationeryId: String? = null,
     val fontCode: String? = null,
     val body: LetterBodyText? = null,
-    val bodyUrl: String? = null
+    val bodyUrl: String? = null,
+    val scanObjectKey: String? = null
 )
 
 @Serializable
