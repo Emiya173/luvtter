@@ -72,7 +72,9 @@ fun Application.module() {
         folderRoutes(get())
         attachmentRoutes(get())
         mediaRoutes(get())
-        notificationRoutes()
+        val heartbeat = environment.config.propertyOrNull("notifications.heartbeatSeconds")
+            ?.getString()?.toLongOrNull() ?: 25L
+        notificationRoutes(heartbeat)
         dailyRewardRoutes(get())
     }
 }

@@ -5,9 +5,14 @@ import com.letter.contract.dto.SignGetRequest
 import com.letter.contract.dto.SignGetResponse
 import com.letter.contract.dto.SignPutRequest
 import com.letter.contract.dto.SignPutResponse
+import com.letter.contract.dto.SignalDto
+import com.letter.contract.dto.UploadDoneRequest
 import com.letter.server.auth.userId
+import com.letter.server.common.now
 import com.letter.server.config.NotFoundException
+import com.letter.server.mail.NotificationService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
@@ -51,6 +56,24 @@ fun Route.mediaRoutes(storage: StorageService) {
                         SignGetResponse(url = url, expiresInSeconds = storage.downloadTtlSeconds)
                     )
                 )
+            }
+            post("/done") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val req = call.receive<UploadDoneRequest>()
+                if (!storage.isUserOwnedKey(uid, req.objectKey)) {
+                    throw NotFoundException(message = "对象不存在")
+                }
+                NotificationService.emitSignal(
+                    uid,
+                    SignalDto(
+                        type = "upload_done",
+                        objectKey = req.objectKey,
+                        sizeBytes = req.sizeBytes,
+                        ts = now().toString()
+                    )
+                )
+                log.info { "media.done user=$uid key=${req.objectKey} size=${req.sizeBytes ?: -1}" }
+                call.respond(HttpStatusCode.NoContent)
             }
         }
     }

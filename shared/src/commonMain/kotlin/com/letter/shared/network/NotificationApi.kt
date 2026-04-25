@@ -37,7 +37,28 @@ class NotificationApi(private val client: HttpClient) {
                     .onSuccess { emit(it) }
                     .onFailure { e -> nalog.warn(e) { "notify.stream.decode-failed data=${data.take(80)}" } }
             }
+            // event=ping / event=ready 仅作为保活和诊断,无需回调
         }
+    }
+
+    /**
+     * 与 [stream] 共享同一条 SSE 链路,但只输出瞬时信号(upload_done / letter_read 等)。
+     * 客户端通常分别 collect 这两个 flow——这里再开一条单独连接以保持解耦。
+     */
+    fun signals(): Flow<SignalDto> = flow {
+        val session = client.sseSession("/api/v1/notifications/stream")
+        session.incoming.collect { sse ->
+            if (sse.event == "signal") {
+                val data = sse.data ?: return@collect
+                runCatching { streamJson.decodeFromString(SignalDto.serializer(), data) }
+                    .onSuccess { emit(it) }
+                    .onFailure { e -> nalog.warn(e) { "notify.signal.decode-failed data=${data.take(80)}" } }
+            }
+        }
+    }
+
+    suspend fun notifyUploadDone(req: UploadDoneRequest) {
+        client.post("/api/v1/uploads/photo/done") { setBody(req) }.ensureSuccess()
     }
 }
 

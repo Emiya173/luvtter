@@ -4,6 +4,7 @@ import com.letter.contract.dto.ApiResponse
 import com.letter.contract.dto.NotificationPrefsDto
 import com.letter.contract.dto.UnreadCountDto
 import com.letter.server.auth.userId
+import com.letter.server.common.now
 import com.letter.server.common.parseId
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -14,26 +15,47 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sse.*
 import io.ktor.sse.ServerSentEvent
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 private val streamJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
 
-fun Route.notificationRoutes() {
+fun Route.notificationRoutes(heartbeatSeconds: Long = 25L) {
     authenticate("auth-jwt") {
         sse("/api/v1/notifications/stream") {
             val uid = call.principal<JWTPrincipal>()!!.userId()
-            send(ServerSentEvent(event = "ready", data = "{}"))
-            NotificationService.subscribe(uid).collect { dto ->
-                send(
-                    ServerSentEvent(
-                        event = "notification",
-                        id = dto.id,
-                        data = streamJson.encodeToString(dto)
+            send(ServerSentEvent(event = "ready", data = """{"heartbeatSeconds":$heartbeatSeconds}"""))
+            val pingJob = launch {
+                while (isActive) {
+                    delay(heartbeatSeconds * 1000)
+                    runCatching {
+                        send(ServerSentEvent(event = "ping", data = """{"ts":"${now()}"}"""))
+                    }.onFailure { return@launch }
+                }
+            }
+            val signalJob = launch {
+                NotificationService.subscribeSignals(uid).collect { sig ->
+                    send(ServerSentEvent(event = "signal", data = streamJson.encodeToString(sig)))
+                }
+            }
+            try {
+                NotificationService.subscribe(uid).collect { dto ->
+                    send(
+                        ServerSentEvent(
+                            event = "notification",
+                            id = dto.id,
+                            data = streamJson.encodeToString(dto)
+                        )
                     )
-                )
+                }
+            } finally {
+                pingJob.cancel()
+                signalJob.cancel()
             }
         }
         route("/api/v1/notifications") {

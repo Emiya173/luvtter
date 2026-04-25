@@ -377,6 +377,16 @@ class LetterService(
             it[readAt] = now()
             it[updatedAt] = now()
         }
+        row[Letters.senderId]?.let { senderId ->
+            NotificationService.emitSignal(
+                senderId,
+                com.letter.contract.dto.SignalDto(
+                    type = "letter_read",
+                    letterId = id.toString(),
+                    ts = now().toString()
+                )
+            )
+        }
     }
 
     fun expedite(senderId: Uuid, id: Uuid, seconds: Long): LetterDetailDto = transaction {

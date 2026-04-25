@@ -19,6 +19,9 @@ storage:
   secretKey: "${S3_SECRET_KEY:minioadmin}"
   bucket: "${S3_BUCKET:letter}"
 
+notifications:
+  heartbeatSeconds: "${SSE_HEARTBEAT_SECONDS:25}"
+
 jwt:
   secret: "${JWT_SECRET:dev-secret-change-me}"
   issuer: "letter-app"

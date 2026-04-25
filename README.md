@@ -191,9 +191,9 @@ alias(libs.plugins.kotlinMultiplatform)
 - 写信:草稿 CRUD、**多段 segment 编辑 + 划掉(strikethrough)**、封存冷静期、
   **贴纸 + 图片附件(`POST /uploads/photo/sign-put` 预签 → 客户端直传 MinIO → `addPhoto(objectKey)`,读取时 server 重签 GET URL)**、重量/邮票承载检查
 - 寄送:距离计算、等级化送达时间、拟真事件、加速(调试)
-- 收件:按地址归属、`delivered/read` 状态、**SSE 实时通知推送**、搜索、收藏、分类夹
+- 收件:按地址归属、`delivered/read` 状态、**SSE 实时通知推送(含 ping 心跳 + 瞬时信号双轨,upload_done/letter_read 不入库直接广播)**、搜索、收藏、分类夹
 - 基础设施:Koin 模块化(服务端按域 auth/user/stamp/mail/storage)、客户端 `koin-compose-viewmodel`、
-  logback 日志滚动、**testcontainers-postgres + testcontainers-minio 集成测试(auth / send / attachment / segment / sse / sessions / media-upload 七条 happy path)**
+  logback 日志滚动、**testcontainers-postgres + testcontainers-minio 集成测试(auth / send / attachment / segment / sse / sessions / media-upload / sse-heartbeat-signals 八条 happy path,共 14 用例)**
 
 **后续路线**参考《信件应用-技术设计文档.md》第六章:
 

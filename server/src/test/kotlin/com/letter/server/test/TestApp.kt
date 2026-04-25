@@ -48,7 +48,8 @@ private fun testConfig(useMinio: Boolean): MapApplicationConfig {
         "jwt.audience" to "letter-test-users",
         "jwt.realm" to "letter-test",
         "jwt.accessTokenTtlSeconds" to "3600",
-        "jwt.refreshTokenTtlDays" to "1"
+        "jwt.refreshTokenTtlDays" to "1",
+        "notifications.heartbeatSeconds" to "1"
     )
 }
 

@@ -25,13 +25,25 @@ private val nlog = KotlinLogging.logger("com.letter.server.notify")
 object NotificationService {
 
     private val streams = ConcurrentHashMap<Uuid, MutableSharedFlow<NotificationDto>>()
+    private val signalStreams = ConcurrentHashMap<Uuid, MutableSharedFlow<com.letter.contract.dto.SignalDto>>()
 
     private fun bus(userId: Uuid): MutableSharedFlow<NotificationDto> =
         streams.computeIfAbsent(userId) {
             MutableSharedFlow(replay = 0, extraBufferCapacity = 64)
         }
 
+    private fun signalBus(userId: Uuid): MutableSharedFlow<com.letter.contract.dto.SignalDto> =
+        signalStreams.computeIfAbsent(userId) {
+            MutableSharedFlow(replay = 0, extraBufferCapacity = 64)
+        }
+
     fun subscribe(userId: Uuid): SharedFlow<NotificationDto> = bus(userId).asSharedFlow()
+    fun subscribeSignals(userId: Uuid): SharedFlow<com.letter.contract.dto.SignalDto> = signalBus(userId).asSharedFlow()
+
+    fun emitSignal(userId: Uuid, signal: com.letter.contract.dto.SignalDto) {
+        signalBus(userId).tryEmit(signal)
+        nlog.info { "notify.signal user=$userId type=${signal.type}" }
+    }
 
     fun emit(
         userId: Uuid,
