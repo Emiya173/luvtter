@@ -17,6 +17,7 @@ import com.luvtter.server.routes.helloRoutes
 import com.luvtter.server.stamp.catalogRoutes
 import com.luvtter.server.stamp.dailyRewardRoutes
 import com.luvtter.server.storage.mediaRoutes
+import com.luvtter.server.tasks.AsyncTaskRunner
 import com.luvtter.server.user.addressRoutes
 import com.luvtter.server.user.contactRoutes
 import io.ktor.server.application.*
@@ -68,7 +69,7 @@ fun Application.module() {
         addressRoutes(get())
         contactRoutes(get())
         catalogRoutes(get())
-        letterRoutes(get())
+        letterRoutes(get(), get())
         folderRoutes(get())
         attachmentRoutes(get())
         mediaRoutes(get())
@@ -77,4 +78,8 @@ fun Application.module() {
         notificationRoutes(heartbeat)
         dailyRewardRoutes(get())
     }
+
+    val taskRunner = get<AsyncTaskRunner>()
+    taskRunner.start()
+    monitor.subscribe(ApplicationStopped) { taskRunner.stop() }
 }

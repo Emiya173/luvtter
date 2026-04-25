@@ -3,6 +3,7 @@ package com.luvtter.server.mail
 import com.luvtter.contract.dto.*
 import com.luvtter.server.auth.userId
 import com.luvtter.server.common.parseId
+import com.luvtter.server.tasks.OcrTaskQuery
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -11,7 +12,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-fun Route.letterRoutes(service: LetterService) {
+fun Route.letterRoutes(service: LetterService, ocr: OcrTaskQuery) {
     authenticate("auth-jwt") {
         route("/api/v1/letters") {
             // 草稿
@@ -81,6 +82,11 @@ fun Route.letterRoutes(service: LetterService) {
                 val uid = call.principal<JWTPrincipal>()!!.userId()
                 val id = parseId(call.parameters["id"]!!)
                 call.respond(ApiResponse(service.events(uid, id)))
+            }
+            get("/{id}/ocr-status") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val id = parseId(call.parameters["id"]!!)
+                call.respond(ApiResponse(ocr.statusFor(uid, id)))
             }
             // 测试入口：将在途信件加速到 N 秒后送达（仅寄件人；上限 1h）
             post("/{id}/expedite") {

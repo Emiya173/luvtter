@@ -12,6 +12,9 @@ import com.luvtter.server.stamp.DailyRewardService
 import com.luvtter.server.storage.StorageConfig
 import com.luvtter.server.storage.StorageService
 import com.luvtter.server.storage.storageConfig
+import com.luvtter.server.tasks.AsyncTaskRunner
+import com.luvtter.server.tasks.OcrIndexService
+import com.luvtter.server.tasks.OcrTaskQuery
 import com.luvtter.server.user.AddressService
 import com.luvtter.server.user.ContactService
 import com.luvtter.server.user.UserService
@@ -22,6 +25,10 @@ import org.koin.dsl.module
 fun configModule(config: ApplicationConfig) = module {
     single<JwtConfig> { config.jwtConfig() }
     single<StorageConfig> { config.storageConfig() }
+    single<TasksConfig> {
+        val poll = config.propertyOrNull("tasks.pollMillis")?.getString()?.toLongOrNull() ?: 2_000L
+        TasksConfig(pollMillis = poll)
+    }
 }
 
 val storageModule = module {
@@ -50,11 +57,23 @@ val mailModule = module {
     singleOf(::AttachmentService)
 }
 
+val tasksModule = module {
+    singleOf(::OcrIndexService)
+    singleOf(::OcrTaskQuery)
+    single {
+        val poll = get<TasksConfig>().pollMillis
+        AsyncTaskRunner(get(), poll)
+    }
+}
+
+data class TasksConfig(val pollMillis: Long)
+
 fun appModules(config: ApplicationConfig) = listOf(
     configModule(config),
     storageModule,
     authModule,
     userModule,
     stampModule,
-    mailModule
+    mailModule,
+    tasksModule,
 )
