@@ -16,6 +16,7 @@ import com.letter.server.mail.notificationRoutes
 import com.letter.server.routes.helloRoutes
 import com.letter.server.stamp.catalogRoutes
 import com.letter.server.stamp.dailyRewardRoutes
+import com.letter.server.storage.mediaRoutes
 import com.letter.server.user.addressRoutes
 import com.letter.server.user.contactRoutes
 import io.ktor.server.application.*
@@ -70,6 +71,7 @@ fun Application.module() {
         letterRoutes(get())
         folderRoutes(get())
         attachmentRoutes(get())
+        mediaRoutes(get())
         notificationRoutes()
         dailyRewardRoutes(get())
     }

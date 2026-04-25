@@ -74,6 +74,7 @@ dependencies {
     testImplementation(libs.ktor.client.content.negotiation)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgres)
+    testImplementation(libs.testcontainers.minio)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

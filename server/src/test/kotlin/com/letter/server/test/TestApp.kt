@@ -17,17 +17,32 @@ private val testJson = Json {
     explicitNulls = false
 }
 
-private fun testConfig(): MapApplicationConfig {
+private fun testConfig(useMinio: Boolean): MapApplicationConfig {
     val c = PostgresContainer.container
+    val storageEndpoint: String
+    val storageAccess: String
+    val storageSecret: String
+    val storageBucket: String
+    if (useMinio) {
+        storageEndpoint = MinioContainer.endpoint
+        storageAccess = MinioContainer.accessKey
+        storageSecret = MinioContainer.secretKey
+        storageBucket = MinioContainer.BUCKET
+    } else {
+        storageEndpoint = "http://localhost:9000"
+        storageAccess = "test"
+        storageSecret = "test"
+        storageBucket = "test"
+    }
     return MapApplicationConfig(
         "database.url" to c.jdbcUrl,
         "database.user" to c.username,
         "database.password" to c.password,
         "database.maxPoolSize" to "4",
-        "storage.endpoint" to "http://localhost:9000",
-        "storage.accessKey" to "test",
-        "storage.secretKey" to "test",
-        "storage.bucket" to "test",
+        "storage.endpoint" to storageEndpoint,
+        "storage.accessKey" to storageAccess,
+        "storage.secretKey" to storageSecret,
+        "storage.bucket" to storageBucket,
         "jwt.secret" to "test-secret-please-change",
         "jwt.issuer" to "letter-test",
         "jwt.audience" to "letter-test-users",
@@ -67,10 +82,13 @@ fun truncateUserData() {
     }
 }
 
-fun runServerTest(block: suspend ApplicationTestBuilder.(client: HttpClient) -> Unit) {
+fun runServerTest(
+    useMinio: Boolean = false,
+    block: suspend ApplicationTestBuilder.(client: HttpClient) -> Unit
+) {
     truncateUserData()
     testApplication {
-        environment { config = testConfig() }
+        environment { config = testConfig(useMinio) }
         application { module() }
         val client = createClient {
             install(ContentNegotiation) { json(testJson) }

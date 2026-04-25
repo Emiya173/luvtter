@@ -91,6 +91,7 @@ data class AttachmentDto(
     val mediaUrl: String? = null,
     val thumbnailUrl: String? = null,
     val stickerId: String? = null,
+    val objectKey: String? = null,
     val positionX: Double? = null,
     val positionY: Double? = null,
     val rotation: Double? = null,
@@ -100,8 +101,9 @@ data class AttachmentDto(
 
 @Serializable
 data class AddPhotoAttachmentRequest(
-    val mediaUrl: String,
+    val mediaUrl: String? = null,
     val thumbnailUrl: String? = null,
+    val objectKey: String? = null,
     val weight: Int,
     val positionX: Double? = null,
     val positionY: Double? = null,

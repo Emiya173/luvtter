@@ -9,6 +9,7 @@ import com.letter.server.config.ApiException
 import com.letter.server.config.NotFoundException
 import com.letter.server.config.ValidationException
 import com.letter.server.db.*
+import com.letter.server.storage.StorageService
 import com.letter.server.user.publicDto
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.*
@@ -41,7 +42,10 @@ private val jsonCodec = Json { ignoreUnknownKeys = true; encodeDefaults = true; 
 private val log = KotlinLogging.logger {}
 
 @OptIn(ExperimentalUuidApi::class)
-class LetterService(private val events: EventGenerator = EventGenerator()) {
+class LetterService(
+    private val storage: StorageService,
+    private val events: EventGenerator = EventGenerator()
+) {
 
     // --- 草稿 ---
 
@@ -539,20 +543,7 @@ class LetterService(private val events: EventGenerator = EventGenerator()) {
         val attachments = LetterAttachments.selectAll()
             .where { LetterAttachments.letterId eq id }
             .orderBy(LetterAttachments.orderIndex to SortOrder.ASC)
-            .map { a ->
-                AttachmentDto(
-                    id = a[LetterAttachments.id].toString(),
-                    attachmentType = a[LetterAttachments.attachmentType],
-                    mediaUrl = a[LetterAttachments.mediaUrl],
-                    thumbnailUrl = a[LetterAttachments.thumbnailUrl],
-                    stickerId = a[LetterAttachments.stickerId]?.toString(),
-                    positionX = a[LetterAttachments.positionX],
-                    positionY = a[LetterAttachments.positionY],
-                    rotation = a[LetterAttachments.rotation],
-                    weight = a[LetterAttachments.weight],
-                    orderIndex = a[LetterAttachments.orderIndex]
-                )
-            }
+            .map { it.toAttachmentDto(storage) }
         val bodyElement = content[LetterContents.bodyJson]
         val body = bodyElement?.let {
             runCatching { jsonCodec.decodeFromJsonElement(LetterBodyText.serializer(), it) }.getOrNull()

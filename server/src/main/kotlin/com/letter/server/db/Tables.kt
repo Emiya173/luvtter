@@ -210,6 +210,7 @@ object LetterAttachments : Table("letter_attachments") {
     val attachmentType = varchar("attachment_type", 16)
     val mediaUrl = text("media_url").nullable()
     val thumbnailUrl = text("thumbnail_url").nullable()
+    val objectKey = text("object_key").nullable()
     val stickerId = uuid("sticker_id").nullable()
     val positionX = double("position_x").nullable()
     val positionY = double("position_y").nullable()
