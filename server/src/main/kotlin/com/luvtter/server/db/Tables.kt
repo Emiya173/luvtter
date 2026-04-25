@@ -267,6 +267,9 @@ object UserNotificationPrefs : Table("user_notification_prefs") {
     val newLetter = bool("new_letter").default(true)
     val postcard = bool("postcard").default(true)
     val reply = bool("reply").default(true)
+    val quietStart = short("quiet_start").nullable()
+    val quietEnd = short("quiet_end").nullable()
+    val timezone = varchar("timezone", 64).nullable()
     val updatedAt = timestampWithTimeZone("updated_at")
     override val primaryKey = PrimaryKey(userId)
 }

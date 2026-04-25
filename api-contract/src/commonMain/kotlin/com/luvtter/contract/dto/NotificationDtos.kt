@@ -39,7 +39,13 @@ data class UploadDoneRequest(
 data class NotificationPrefsDto(
     val newLetter: Boolean,
     val postcard: Boolean,
-    val reply: Boolean
+    val reply: Boolean,
+    /** 免打扰起始本地小时 [0,23]，与 quietEnd 同时为 null 表示关闭。 */
+    val quietStart: Int? = null,
+    /** 免打扰结束本地小时 [0,23]，半开区间。start>end 表示跨日。 */
+    val quietEnd: Int? = null,
+    /** IANA 时区 (如 Asia/Shanghai)，为 null 时按 UTC。 */
+    val timezone: String? = null
 )
 
 @Serializable

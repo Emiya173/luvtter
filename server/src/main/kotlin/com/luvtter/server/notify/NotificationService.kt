@@ -3,6 +3,7 @@ package com.luvtter.server.mail
 import com.luvtter.contract.dto.*
 import com.luvtter.server.common.newId
 import com.luvtter.server.common.now
+import com.luvtter.server.config.ValidationException
 import com.luvtter.server.db.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -15,6 +16,8 @@ import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -94,8 +97,28 @@ object NotificationService {
             readAt = null,
             createdAt = ts.toString()
         )
-        bus(userId).tryEmit(dto)
-        nlog.info { "notify.emit user=$userId type=$type letter=$letterId address=$addressId" }
+        if (isInQuietHours(prefs)) {
+            nlog.info { "notify.quiet user=$userId type=$type letter=$letterId (持久化已落库,跳过 SSE 推送)" }
+        } else {
+            bus(userId).tryEmit(dto)
+            nlog.info { "notify.emit user=$userId type=$type letter=$letterId address=$addressId" }
+        }
+    }
+
+    private fun isInQuietHours(prefs: org.jetbrains.exposed.v1.core.ResultRow?): Boolean {
+        if (prefs == null) return false
+        val start = prefs[UserNotificationPrefs.quietStart]?.toInt() ?: return false
+        val end = prefs[UserNotificationPrefs.quietEnd]?.toInt() ?: return false
+        if (start == end) return false
+        val zone = prefs[UserNotificationPrefs.timezone]
+            ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: ZoneId.of("UTC")
+        val hour = ZonedDateTime.now(zone).hour
+        return if (start < end) {
+            hour in start until end
+        } else {
+            hour >= start || hour < end
+        }
     }
 
     fun list(userId: Uuid, limit: Int = 50): List<NotificationDto> =
@@ -147,28 +170,56 @@ object NotificationService {
         return NotificationPrefsDto(
             newLetter = row?.get(UserNotificationPrefs.newLetter) ?: true,
             postcard = row?.get(UserNotificationPrefs.postcard) ?: true,
-            reply = row?.get(UserNotificationPrefs.reply) ?: true
+            reply = row?.get(UserNotificationPrefs.reply) ?: true,
+            quietStart = row?.get(UserNotificationPrefs.quietStart)?.toInt(),
+            quietEnd = row?.get(UserNotificationPrefs.quietEnd)?.toInt(),
+            timezone = row?.get(UserNotificationPrefs.timezone)
         )
     }
 
     fun updatePrefs(userId: Uuid, req: NotificationPrefsDto): NotificationPrefsDto {
+        val normalized = normalizeQuietHours(req)
         val exists = UserNotificationPrefs.selectAll().where { UserNotificationPrefs.userId eq userId }.firstOrNull()
         if (exists == null) {
             UserNotificationPrefs.insert {
                 it[UserNotificationPrefs.userId] = userId
-                it[newLetter] = req.newLetter
-                it[postcard] = req.postcard
-                it[reply] = req.reply
+                it[newLetter] = normalized.newLetter
+                it[postcard] = normalized.postcard
+                it[reply] = normalized.reply
+                it[quietStart] = normalized.quietStart?.toShort()
+                it[quietEnd] = normalized.quietEnd?.toShort()
+                it[timezone] = normalized.timezone
                 it[updatedAt] = now()
             }
         } else {
             UserNotificationPrefs.update({ UserNotificationPrefs.userId eq userId }) {
-                it[newLetter] = req.newLetter
-                it[postcard] = req.postcard
-                it[reply] = req.reply
+                it[newLetter] = normalized.newLetter
+                it[postcard] = normalized.postcard
+                it[reply] = normalized.reply
+                it[quietStart] = normalized.quietStart?.toShort()
+                it[quietEnd] = normalized.quietEnd?.toShort()
+                it[timezone] = normalized.timezone
                 it[updatedAt] = now()
             }
         }
-        return req
+        return normalized
+    }
+
+    private fun normalizeQuietHours(req: NotificationPrefsDto): NotificationPrefsDto {
+        val s = req.quietStart
+        val e = req.quietEnd
+        // 任一为 null 则视为关闭,清空另一字段与 timezone (避免半残状态)
+        if (s == null || e == null) {
+            return req.copy(quietStart = null, quietEnd = null, timezone = null)
+        }
+        if (s !in 0..23 || e !in 0..23) {
+            throw ValidationException("quietStart/quietEnd 必须在 [0,23]")
+        }
+        val tz = req.timezone?.let {
+            runCatching { ZoneId.of(it).id }.getOrElse {
+                throw ValidationException("非法 timezone: ${req.timezone}")
+            }
+        }
+        return req.copy(quietStart = s, quietEnd = e, timezone = tz)
     }
 }
