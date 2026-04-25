@@ -72,6 +72,13 @@ class LetterService(
                 throw ValidationException("scanObjectKey 不属于当前用户")
             }
         }
+        if (req.contentType == "handwriting") {
+            val key = req.handwritingObjectKey
+                ?: throw ValidationException("contentType=handwriting 时必须传 handwritingObjectKey")
+            if (!storage.isUserOwnedKey(senderId, key)) {
+                throw ValidationException("handwritingObjectKey 不属于当前用户")
+            }
+        }
         LetterContents.insert {
             it[letterId] = id
             it[contentType] = req.contentType
@@ -79,6 +86,7 @@ class LetterService(
             it[bodyJson] = req.body?.let { b -> jsonCodec.encodeToJsonElement<LetterBodyText>(b) }
             it[bodyUrl] = req.bodyUrl
             it[scanObjectKey] = req.scanObjectKey
+            it[handwritingObjectKey] = req.handwritingObjectKey
             it[createdAt] = ts
             it[updatedAt] = ts
         }
@@ -132,6 +140,12 @@ class LetterService(
                     throw ValidationException("scanObjectKey 不属于当前用户")
                 }
                 it[scanObjectKey] = v
+            }
+            req.handwritingObjectKey?.let { v ->
+                if (!storage.isUserOwnedKey(senderId, v)) {
+                    throw ValidationException("handwritingObjectKey 不属于当前用户")
+                }
+                it[handwritingObjectKey] = v
             }
             it[updatedAt] = ts
         }
@@ -578,9 +592,11 @@ class LetterService(
         val body = bodyElement?.let {
             runCatching { jsonCodec.decodeFromJsonElement(LetterBodyText.serializer(), it) }.getOrNull()
         }
-        // 扫描信:每次按 scan_object_key 重签发短期 GET URL,覆盖 body_url 字段返回前端
+        // 扫描信 / 手写信:每次按对应 object_key 重签发短期 GET URL,覆盖 body_url 字段返回前端
         val resolvedBodyUrl = content[LetterContents.scanObjectKey]
             ?.let { runCatching { storage.presignGet(it) }.getOrNull() }
+            ?: content[LetterContents.handwritingObjectKey]
+                ?.let { runCatching { storage.presignGet(it) }.getOrNull() }
             ?: content[LetterContents.bodyUrl]
         return LetterDetailDto(
             summary = buildSummary(letterRow, viewerId),

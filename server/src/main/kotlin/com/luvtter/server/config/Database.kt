@@ -18,7 +18,7 @@ fun runMigrations(config: ApplicationConfig) {
         .migrate()
 }
 
-fun configureDatabase(config: ApplicationConfig) {
+fun configureDatabase(config: ApplicationConfig): HikariDataSource {
     val hikariConfig = HikariConfig().apply {
         jdbcUrl = config.property("database.url").getString()
         username = config.property("database.user").getString()
@@ -31,4 +31,5 @@ fun configureDatabase(config: ApplicationConfig) {
     }
     val dataSource = HikariDataSource(hikariConfig)
     Database.connect(dataSource)
+    return dataSource
 }

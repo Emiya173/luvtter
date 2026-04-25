@@ -22,12 +22,17 @@ private val ALLOWED_SCAN_TYPES = setOf(
     "image/jpeg", "image/png", "image/webp", "application/pdf"
 )
 
+private val ALLOWED_HANDWRITING_TYPES = setOf(
+    "application/json", "image/png"
+)
+
 private val EXTENSIONS = mapOf(
     "image/jpeg" to "jpg",
     "image/png" to "png",
     "image/webp" to "webp",
     "image/gif" to "gif",
-    "application/pdf" to "pdf"
+    "application/pdf" to "pdf",
+    "application/json" to "json"
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -80,6 +85,21 @@ class StorageService(private val cfg: StorageConfig) {
     fun newScanKey(userId: Uuid, contentType: String): String {
         val ext = EXTENSIONS[contentType] ?: "bin"
         return "users/$userId/scans/${newId()}.$ext"
+    }
+
+    fun validateHandwritingUpload(contentType: String, sizeBytes: Long) {
+        if (contentType !in ALLOWED_HANDWRITING_TYPES) {
+            throw ValidationException("不支持的笔迹类型: $contentType (仅 application/json, image/png)")
+        }
+        if (sizeBytes <= 0) throw ValidationException("文件大小必须为正")
+        if (sizeBytes > cfg.maxHandwritingBytes) {
+            throw ValidationException("笔迹超过上限 ${cfg.maxHandwritingBytes / (1024 * 1024)}MB")
+        }
+    }
+
+    fun newHandwritingKey(userId: Uuid, contentType: String): String {
+        val ext = EXTENSIONS[contentType] ?: "bin"
+        return "users/$userId/handwriting/${newId()}.$ext"
     }
 
     fun isUserOwnedKey(userId: Uuid, key: String): Boolean =

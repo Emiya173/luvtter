@@ -12,6 +12,7 @@ data class StorageConfig(
     val downloadTtlSeconds: Int = 3600,
     val maxPhotoBytes: Long = 10L * 1024 * 1024,
     val maxScanBytes: Long = 30L * 1024 * 1024,
+    val maxHandwritingBytes: Long = 5L * 1024 * 1024,
     val publicBaseUrl: String? = null
 )
 
@@ -25,5 +26,6 @@ fun ApplicationConfig.storageConfig(): StorageConfig = StorageConfig(
     downloadTtlSeconds = propertyOrNull("storage.downloadTtlSeconds")?.getString()?.toInt() ?: 3600,
     maxPhotoBytes = propertyOrNull("storage.maxPhotoBytes")?.getString()?.toLong() ?: (10L * 1024 * 1024),
     maxScanBytes = propertyOrNull("storage.maxScanBytes")?.getString()?.toLong() ?: (30L * 1024 * 1024),
+    maxHandwritingBytes = propertyOrNull("storage.maxHandwritingBytes")?.getString()?.toLong() ?: (5L * 1024 * 1024),
     publicBaseUrl = propertyOrNull("storage.publicBaseUrl")?.getString()
 )

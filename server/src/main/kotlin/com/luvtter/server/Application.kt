@@ -35,7 +35,10 @@ fun main(args: Array<String>) {
 
 fun Application.module() {
     runMigrations(environment.config)
-    configureDatabase(environment.config)
+    val dataSource = configureDatabase(environment.config)
+    monitor.subscribe(ApplicationStopped) {
+        runCatching { dataSource.close() }
+    }
     configureSerialization()
     configureStatusPages()
 

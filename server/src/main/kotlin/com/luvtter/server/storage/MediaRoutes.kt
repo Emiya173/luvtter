@@ -38,6 +38,13 @@ fun Route.mediaRoutes(storage: StorageService) {
             validate = storage::validateScanUpload,
             newKey = storage::newScanKey
         )
+        uploadKind(
+            storage = storage,
+            pathPrefix = "/api/v1/uploads/handwriting",
+            kindLabel = "handwriting",
+            validate = storage::validateHandwritingUpload,
+            newKey = storage::newHandwritingKey
+        )
     }
 }
 
