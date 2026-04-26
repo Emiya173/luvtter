@@ -2,15 +2,20 @@ package com.luvtter.app.ui.compose
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.luvtter.app.ui.common.FlowChips
 import com.luvtter.contract.dto.TextSegment
 import org.koin.compose.viewmodel.koinViewModel
@@ -51,7 +56,10 @@ fun ComposeScreen(
         onDismissStickerDialog = { showStickerDialog = false },
         onPickSticker = { id -> vm.addStickerAttachment(id); showStickerDialog = false },
         onPickPhoto = vm::pickAndUploadPhoto,
-        onRemoveAttachment = vm::removeAttachment
+        onRemoveAttachment = vm::removeAttachment,
+        onModeSelect = vm::setMode,
+        onPickScan = vm::pickAndUploadScan,
+        onClearScan = vm::clearScan
     )
 }
 
@@ -84,7 +92,10 @@ private fun ComposeContent(
     onDismissStickerDialog: () -> Unit,
     onPickSticker: (String) -> Unit,
     onPickPhoto: () -> Unit,
-    onRemoveAttachment: (String) -> Unit
+    onRemoveAttachment: (String) -> Unit,
+    onModeSelect: (String) -> Unit,
+    onPickScan: () -> Unit,
+    onClearScan: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -131,23 +142,41 @@ private fun ComposeContent(
 
             Spacer(Modifier.height(12.dp))
             Text("信件内容", style = MaterialTheme.typography.titleSmall)
-            Text(
-                "每一段为独立片段,可单独划掉(保留痕迹,服务端仍存原文)。",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            Spacer(Modifier.height(4.dp))
+            FlowChips(
+                items = listOf(
+                    Triple("text", "键入文本", state.mode == "text"),
+                    Triple("scan", "扫描信", state.mode == "scan"),
+                ),
+                onSelect = onModeSelect
             )
             Spacer(Modifier.height(6.dp))
-            state.segments.forEachIndexed { index, seg ->
-                SegmentEditorRow(
-                    segment = seg,
-                    index = index,
-                    canRemove = state.segments.size > 1,
-                    onTextChange = { onSegmentTextChange(index, it) },
-                    onToggleStrikethrough = { onSegmentStyleToggle(index) },
-                    onAddAfter = { onSegmentAddAfter(index) },
-                    onRemove = { onSegmentRemove(index) }
+
+            if (state.mode == "scan") {
+                ScanEditorSection(
+                    state = state,
+                    onPickScan = onPickScan,
+                    onClearScan = onClearScan
+                )
+            } else {
+                Text(
+                    "每一段为独立片段,可单独划掉(保留痕迹,服务端仍存原文)。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(6.dp))
+                state.segments.forEachIndexed { index, seg ->
+                    SegmentEditorRow(
+                        segment = seg,
+                        index = index,
+                        canRemove = state.segments.size > 1,
+                        onTextChange = { onSegmentTextChange(index, it) },
+                        onToggleStrikethrough = { onSegmentStyleToggle(index) },
+                        onAddAfter = { onSegmentAddAfter(index) },
+                        onRemove = { onSegmentRemove(index) }
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
             }
             Spacer(Modifier.height(16.dp))
 
@@ -393,6 +422,57 @@ private fun SegmentEditorRow(
                 enabled = canRemove,
                 onClick = onRemove
             ) { Text("删除") }
+        }
+    }
+}
+
+@Composable
+private fun ScanEditorSection(
+    state: ComposeUiState,
+    onPickScan: () -> Unit,
+    onClearScan: () -> Unit,
+) {
+    Text(
+        "扫描信:上传一张图片或 PDF 作为信件主体。文本类编辑器将被替代,寄出后会进入 OCR 索引以便搜索。",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(Modifier.height(8.dp))
+    if (state.scanBound) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("已绑定:${state.scanFilename ?: "(已上传)"}", style = MaterialTheme.typography.bodyMedium)
+            val previewUrl = state.scanPreviewUrl
+            val ct = state.scanContentType
+            val isImage = ct == null && previewUrl != null && Regex("\\.(jpe?g|png|webp|gif)(\\?|$)").containsMatchIn(previewUrl)
+                || ct?.startsWith("image/") == true
+            if (previewUrl != null && isImage) {
+                Spacer(Modifier.height(8.dp))
+                AsyncImage(
+                    model = previewUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).clip(RoundedCornerShape(8.dp))
+                )
+            }
+            if (previewUrl != null && !isImage) {
+                val uri = LocalUriHandler.current
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = { uri.openUri(previewUrl) }) {
+                    Text("在浏览器中打开 PDF")
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row {
+                OutlinedButton(enabled = !state.scanUploading, onClick = onPickScan) {
+                    Text(if (state.scanUploading) "处理中..." else "替换扫描件")
+                }
+                Spacer(Modifier.width(8.dp))
+                OutlinedButton(enabled = !state.scanUploading, onClick = onClearScan) { Text("移除") }
+            }
+        }
+    } else {
+        Button(enabled = !state.scanUploading, onClick = onPickScan) {
+            Text(if (state.scanUploading) "上传中..." else "选择扫描件并上传")
         }
     }
 }

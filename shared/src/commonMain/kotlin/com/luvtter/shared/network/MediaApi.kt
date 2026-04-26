@@ -46,9 +46,23 @@ class MediaApi(
     }
 
     /** 端到端: sign → PUT → done。返回 objectKey。 */
-    suspend fun uploadPhoto(filename: String, contentType: String, bytes: ByteArray): String {
+    suspend fun uploadPhoto(filename: String, contentType: String, bytes: ByteArray): String =
+        uploadKind("/api/v1/uploads/photo", filename, contentType, bytes)
+
+    /** 同 uploadPhoto,目标桶 prefix 是 `users/{uid}/scans/`,默认上限 30MB,接受 image+pdf。 */
+    suspend fun uploadScan(filename: String, contentType: String, bytes: ByteArray): String =
+        uploadKind("/api/v1/uploads/scan", filename, contentType, bytes)
+
+    private suspend fun uploadKind(
+        signPutPath: String,
+        filename: String,
+        contentType: String,
+        bytes: ByteArray,
+    ): String {
         val sized = bytes.size.toLong()
-        val signed = signPut(filename, contentType, sized)
+        val signed: SignPutResponse = client.post("$signPutPath/sign-put") {
+            setBody(SignPutRequest(filename = filename, contentType = contentType, sizeBytes = sized))
+        }.unwrap()
         log.info { "media.upload start key=${signed.objectKey} size=$sized type=$contentType" }
         val resp = rawClient.put(signed.uploadUrl) {
             contentType(ContentType.parse(contentType))
@@ -58,8 +72,11 @@ class MediaApi(
             val body = runCatching { String(resp.bodyAsBytes()) }.getOrDefault("")
             throw RuntimeException("S3 PUT 失败: ${resp.status} ${body.take(200)}")
         }
-        runCatching { notifyUploadDone(signed.objectKey, sized) }
-            .onFailure { log.warn(it) { "media.done 通知失败,忽略 (附件仍可用)" } }
+        runCatching {
+            client.post("$signPutPath/done") {
+                setBody(UploadDoneRequest(objectKey = signed.objectKey, sizeBytes = sized))
+            }.ensureSuccess()
+        }.onFailure { log.warn(it) { "media.done 通知失败,忽略" } }
         log.info { "media.upload done key=${signed.objectKey}" }
         return signed.objectKey
     }

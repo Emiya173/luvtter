@@ -12,7 +12,8 @@
 - Exposed 1.0.0, PostgreSQL 16
 - Koin 4.1 DI(服务端 + 客户端)
 - testcontainers 1.21.3 集成测试
-- MinIO 对象存储(预签名 PUT/GET 上传链路已通,附件以 objectKey 持久化)
+- MinIO 对象存储(预签名 PUT/GET 上传链路已通,附件 / 扫描信 / 手写信均以 objectKey 持久化)
+- Coil 3.0.4 KMP(`coil-network-ktor3` 走自定义无 JWT 的 `rawClient`)图片渲染
 
 配套设计文档见仓库doc/的两份 markdown 文件。
 
@@ -189,9 +190,11 @@ alias(libs.plugins.kotlinMultiplatform)
 - 认证:邮箱注册/登录/刷新/登出、两步式 handle、**多设备 Session 列表 + 撤销**
 - 用户:多地址(真实 + 虚拟锚点)、当前位置切换、联系人 + 屏蔽
 - 写信:草稿 CRUD、**多段 segment 编辑 + 划掉(strikethrough)**、封存冷静期、
-  **贴纸 + 图片附件(`POST /uploads/photo/sign-put` 预签 → 客户端直传 MinIO → `addPhoto(objectKey)`,读取时 server 重签 GET URL)**、重量/邮票承载检查
+  **贴纸 + 图片附件(`POST /uploads/photo/sign-put` 预签 → 客户端直传 MinIO → `addPhoto(objectKey)`,读取时 server 重签 GET URL)**、重量/邮票承载检查、
+  **扫描信上传(`/uploads/scan/sign-put` 接受 jpg/png/webp/pdf,30MB)+ 手写信上传(`/uploads/handwriting/sign-put` 接受 application/json + image/png,5MB),`CreateDraftRequest(contentType="scan"|"handwriting", *_objectKey=...)` 创建非文本草稿,详情页 server 重签发 GET URL,Desktop ComposeScreen 「键入文本/扫描信」模式 chip 直传扫描件**
 - 寄送:距离计算、等级化送达时间、拟真事件、加速(调试)
-- 收件:按地址归属、`delivered/read` 状态、**SSE 实时通知推送(含 ping 心跳 + 瞬时信号双轨,upload_done/letter_read 不入库直接广播)**、搜索、收藏、分类夹
+- 收件:按地址归属、`delivered/read` 状态、**SSE 实时通知推送(含 ping 心跳 + 瞬时信号双轨,upload_done/letter_read 不入库直接广播)**、搜索、收藏、分类夹、
+  **收/发件箱行尾 `📷N 🏷M` 附件统计 chip;详情页 Coil3 KMP `AsyncImage` 渲染图片附件,扫描信/手写信通过 `ScannedBody`(图片直显、PDF/JSON 走 `LocalUriHandler.openUri`)展示**
 - 基础设施:Koin 模块化(服务端按域 auth/user/stamp/mail/storage)、客户端 `koin-compose-viewmodel`、
   logback 日志滚动、**testcontainers-postgres + testcontainers-minio 集成测试(auth / send / attachment / segment / sse / sessions / media-upload / sse-heartbeat-signals / search / notification-quiet-hours / scan-upload / ocr-task-runner / handwriting-upload 十三条 happy path,共 29 用例)**
 - 异步任务管线:**进程内 `AsyncTaskRunner` 协程 + PG `FOR UPDATE SKIP LOCKED` 原子认领 + 失败重试退避;`ocr_index` stub 处理器把扫描信内容写入索引,寄出后立刻可被全文搜索;`GET /api/v1/letters/{id}/ocr-status` 暴露任务状态;Python image-worker 接入只需替换 `OcrIndexService.process` 函数体**

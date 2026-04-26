@@ -84,6 +84,13 @@ class ComposeViewModel(
             prev.copy(
                 recipientHandle = s.recipient?.handle.orEmpty(),
                 segments = segs,
+                mode = if (detail.contentType == "scan") "scan" else "text",
+                // detail.bodyUrl 是重签的 MinIO GET URL;objectKey 本身服务端不暴露,
+                // 草稿已绑定就不需要重传,upsertDraft 也不会再往 update 里塞 scanObjectKey。
+                scanBound = detail.contentType == "scan",
+                scanObjectKey = null,
+                scanFilename = if (detail.contentType == "scan") detail.bodyUrl?.substringAfterLast('/')?.substringBefore('?') else null,
+                scanPreviewUrl = if (detail.contentType == "scan") detail.bodyUrl else null,
                 fontCode = detail.fontCode,
                 sealedUntil = s.sealedUntil,
                 stampId = s.stampCode?.let { code -> prev.stamps.firstOrNull { it.code == code }?.id } ?: prev.stampId,
@@ -166,8 +173,10 @@ class ComposeViewModel(
 
     private suspend fun upsertDraft(): String {
         val s = _state.value
-        val packed = s.segments.filter { it.text.isNotEmpty() }.ifEmpty { listOf(TextSegment("")) }
-        val body = LetterBodyText(packed)
+        val isScan = s.mode == "scan"
+        val body: LetterBodyText? = if (isScan) null else {
+            LetterBodyText(s.segments.filter { it.text.isNotEmpty() }.ifEmpty { listOf(TextSegment("")) })
+        }
         val existing = s.draftId
         return if (existing != null) {
             letters.updateDraft(existing, UpdateDraftRequest(
@@ -177,7 +186,8 @@ class ComposeViewModel(
                 stampId = s.stampId,
                 stationeryId = s.stationeryId,
                 fontCode = s.fontCode,
-                body = body
+                body = body,
+                scanObjectKey = s.scanObjectKey
             ))
             existing
         } else {
@@ -188,13 +198,58 @@ class ComposeViewModel(
                 stampId = s.stampId,
                 stationeryId = s.stationeryId,
                 fontCode = s.fontCode,
-                contentType = "text",
+                contentType = if (isScan) "scan" else "text",
                 body = body,
+                scanObjectKey = s.scanObjectKey,
                 replyToLetterId = replyToLetterId
             ))
             _state.update { it.copy(draftId = d.summary.id) }
             d.summary.id
         }
+    }
+
+    fun setMode(mode: String) {
+        if (mode != "text" && mode != "scan") return
+        _state.update { it.copy(mode = mode, status = null) }
+    }
+
+    /** 选扫描件并直传 MinIO,完成后把 objectKey 暂存到 state,等保存草稿/寄出时一并提交。 */
+    fun pickAndUploadScan() {
+        viewModelScope.launch {
+            _state.update { it.copy(scanUploading = true, status = "选择扫描件中...") }
+            runCatching {
+                val picked = filePicker.pickScan() ?: run {
+                    _state.update { it.copy(scanUploading = false, status = null) }
+                    return@launch
+                }
+                _state.update { it.copy(status = "上传中 ${picked.filename}...") }
+                val key = media.uploadScan(picked.filename, picked.contentType, picked.bytes)
+                _state.update {
+                    it.copy(
+                        scanObjectKey = key,
+                        scanBound = true,
+                        scanFilename = picked.filename,
+                        scanContentType = picked.contentType,
+                        scanPreviewUrl = null,
+                        status = "已上传 ${picked.filename}"
+                    )
+                }
+            }.onFailure { e ->
+                _state.update { it.copy(status = "扫描件上传失败: ${e.message}") }
+            }
+            _state.update { it.copy(scanUploading = false) }
+        }
+    }
+
+    fun clearScan() = _state.update {
+        it.copy(
+            scanObjectKey = null,
+            scanBound = false,
+            scanFilename = null,
+            scanContentType = null,
+            scanPreviewUrl = null,
+            status = null
+        )
     }
 
     fun saveDraft() {

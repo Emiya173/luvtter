@@ -36,10 +36,25 @@ data class ComposeUiState(
     val sealedUntil: String? = null,
     val loading: Boolean = false,
     val attachmentBusy: Boolean = false,
-    val status: String? = null
+    val status: String? = null,
+
+    /** "text" | "scan" — 信件输入模式 */
+    val mode: String = "text",
+    /** 本次会话中刚上传的扫描件 objectKey (用于把新 key 提交给服务端) */
+    val scanObjectKey: String? = null,
+    /** 草稿上是否已经绑定了一个扫描件 (从服务端 hydrate 出来的) */
+    val scanBound: Boolean = false,
+    /** 展示给用户的文件名 / signed GET URL */
+    val scanFilename: String? = null,
+    val scanPreviewUrl: String? = null,
+    val scanContentType: String? = null,
+    val scanUploading: Boolean = false,
 ) {
     val canSaveDraft: Boolean
-        get() = !loading && recipientHandle.isNotBlank() && segments.any { it.text.isNotBlank() }
+        get() = !loading && recipientHandle.isNotBlank() && when (mode) {
+            "scan" -> scanObjectKey != null || scanBound
+            else -> segments.any { it.text.isNotBlank() }
+        }
     val canSend: Boolean get() = canSaveDraft && stampId != null
     val totalWeight: Int get() = attachments.sumOf { it.weight }
     val stampCapacity: Int? get() = stampId?.let { id -> stamps.firstOrNull { it.id == id }?.weightCapacity }

@@ -7,15 +7,28 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
 actual class FilePicker actual constructor() {
-    actual suspend fun pickImage(): PickedImage? = withContext(Dispatchers.IO) {
+    actual suspend fun pickImage(): PickedImage? = pickWith(
+        title = "选择要附加的图片",
+        filterDesc = "图片 (jpg, jpeg, png, gif, webp)",
+        extensions = arrayOf("jpg", "jpeg", "png", "gif", "webp"),
+    )
+
+    actual suspend fun pickScan(): PickedImage? = pickWith(
+        title = "选择扫描信文件",
+        filterDesc = "扫描件 (jpg, png, webp, pdf)",
+        extensions = arrayOf("jpg", "jpeg", "png", "webp", "pdf"),
+    )
+
+    private suspend fun pickWith(
+        title: String,
+        filterDesc: String,
+        extensions: Array<String>,
+    ): PickedImage? = withContext(Dispatchers.IO) {
         val chooser = JFileChooser().apply {
-            dialogTitle = "选择要附加的图片"
+            dialogTitle = title
             fileSelectionMode = JFileChooser.FILES_ONLY
             isMultiSelectionEnabled = false
-            fileFilter = FileNameExtensionFilter(
-                "图片 (jpg, jpeg, png, gif, webp)",
-                "jpg", "jpeg", "png", "gif", "webp"
-            )
+            fileFilter = FileNameExtensionFilter(filterDesc, *extensions)
         }
         val result = chooser.showOpenDialog(null)
         if (result != JFileChooser.APPROVE_OPTION) return@withContext null
@@ -34,6 +47,7 @@ actual class FilePicker actual constructor() {
             "png" -> "image/png"
             "gif" -> "image/gif"
             "webp" -> "image/webp"
+            "pdf" -> "application/pdf"
             else -> "application/octet-stream"
         }
 }

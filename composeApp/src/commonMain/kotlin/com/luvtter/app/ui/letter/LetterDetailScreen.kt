@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
@@ -107,7 +108,9 @@ private fun LetterDetailContent(
                     } else append(seg.text)
                 }
             }
-            if (text.text.isEmpty()) {
+            if (d.contentType == "scan" || d.contentType == "handwriting") {
+                ScannedBody(label = if (d.contentType == "scan") "扫描信" else "手写信", url = d.bodyUrl)
+            } else if (text.text.isEmpty()) {
                 Text(d.bodyUrl ?: "（无正文）", style = MaterialTheme.typography.bodyMedium)
             } else {
                 Text(text, style = MaterialTheme.typography.bodyLarge)
@@ -175,6 +178,34 @@ private fun LetterDetailContent(
             },
             confirmButton = { TextButton(onClick = onDismissFolderPicker) { Text("关闭") } }
         )
+    }
+}
+
+@Composable
+private fun ScannedBody(label: String, url: String?) {
+    if (url == null) {
+        Text("（$label 内容缺失）", style = MaterialTheme.typography.bodyMedium)
+        return
+    }
+    val isImage = Regex("\\.(jpe?g|png|webp|gif)(\\?|$)").containsMatchIn(url)
+    Text(label, style = MaterialTheme.typography.labelMedium)
+    Spacer(Modifier.height(8.dp))
+    if (isImage) {
+        AsyncImage(
+            model = url,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .clip(RoundedCornerShape(8.dp))
+        )
+    } else {
+        // PDF / 笔画 JSON: 不内嵌渲染,直接给一个浏览器/系统打开按钮
+        val uri = LocalUriHandler.current
+        OutlinedButton(onClick = { uri.openUri(url) }) {
+            Text(if (label == "扫描信") "在浏览器中打开 PDF" else "打开原始文件")
+        }
     }
 }
 

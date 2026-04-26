@@ -14,4 +14,6 @@ data class PickedImage(
  */
 expect class FilePicker() {
     suspend fun pickImage(): PickedImage?
+    /** 选择扫描信文件 (jpg/png/webp + pdf)。 */
+    suspend fun pickScan(): PickedImage?
 }
