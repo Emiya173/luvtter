@@ -43,5 +43,4 @@ Thumbs.db
 
 # Logs
 *.log
-/gradle/wrapper/gradle-wrapper.jar
 /.kotlin/metadata
