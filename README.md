@@ -191,7 +191,7 @@ alias(libs.plugins.kotlinMultiplatform)
 - 认证:邮箱注册/登录/刷新/登出、两步式 handle、**多设备 Session 列表 + 撤销**、
   **首登引导(`GET/PATCH /api/v1/me/onboarding-state`,Desktop Home 一次性"给未来的自己,寄第一封信"卡片,寄出任意一封信后服务端自动 flip `firstLetterSent`)**
 - 用户:多地址(真实 + 虚拟锚点)、当前位置切换、联系人 + 屏蔽
-- 写信:草稿 CRUD、**多段 segment 编辑 + 划掉(strikethrough)**、封存冷静期、
+- 写信:草稿 CRUD、**多段 segment 编辑 + 划掉(strikethrough)、Stage 3「涂改模式」Switch(停顿 3 秒后再 backspace 自动把删字保留为划线段,模仿手写信)**、封存冷静期、
   **贴纸 + 图片附件(`POST /uploads/photo/sign-put` 预签 → 客户端直传 MinIO → `addPhoto(objectKey)`,读取时 server 重签 GET URL)**、重量/邮票承载检查、
   **扫描信上传(`/uploads/scan/sign-put` 接受 jpg/png/webp/pdf,30MB)+ 手写信上传(`/uploads/handwriting/sign-put` 接受 application/json + image/png,5MB),`CreateDraftRequest(contentType="scan"|"handwriting", *_objectKey=...)` 创建非文本草稿,详情页 server 重签发 GET URL,Desktop ComposeScreen 「键入文本/扫描信」模式 chip 直传扫描件**
 - 寄送:距离计算、等级化送达时间、拟真事件、加速(调试)

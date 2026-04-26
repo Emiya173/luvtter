@@ -11,13 +11,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.luvtter.app.ui.common.FlowChips
-import com.luvtter.contract.dto.TextSegment
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -39,10 +45,9 @@ fun ComposeScreen(
         onRecipientHandleChange = vm::onRecipientHandleChange,
         onLookup = vm::lookupRecipient,
         onRecipientAddressSelect = vm::onRecipientAddressSelect,
-        onSegmentTextChange = vm::onSegmentTextChange,
-        onSegmentStyleToggle = vm::onSegmentStyleToggle,
-        onSegmentAddAfter = vm::onSegmentAddAfter,
-        onSegmentRemove = vm::onSegmentRemove,
+        onEditorChange = vm::onEditorChange,
+        onStrikeSelection = vm::strikeSelection,
+        onUnstrikeSelection = vm::unstrikeSelection,
         onStampSelect = vm::onStampSelect,
         onStationerySelect = vm::onStationerySelect,
         onFontSelect = vm::onFontSelect,
@@ -59,7 +64,8 @@ fun ComposeScreen(
         onRemoveAttachment = vm::removeAttachment,
         onModeSelect = vm::setMode,
         onPickScan = vm::pickAndUploadScan,
-        onClearScan = vm::clearScan
+        onClearScan = vm::clearScan,
+        onToggleStrikeOnDelete = vm::toggleStrikeOnDelete,
     )
 }
 
@@ -75,10 +81,9 @@ private fun ComposeContent(
     onRecipientHandleChange: (String) -> Unit,
     onLookup: () -> Unit,
     onRecipientAddressSelect: (String) -> Unit,
-    onSegmentTextChange: (Int, String) -> Unit,
-    onSegmentStyleToggle: (Int) -> Unit,
-    onSegmentAddAfter: (Int) -> Unit,
-    onSegmentRemove: (Int) -> Unit,
+    onEditorChange: (TextFieldValue) -> Unit,
+    onStrikeSelection: () -> Unit,
+    onUnstrikeSelection: () -> Unit,
     onStampSelect: (String) -> Unit,
     onStationerySelect: (String?) -> Unit,
     onFontSelect: (String?) -> Unit,
@@ -96,6 +101,7 @@ private fun ComposeContent(
     onModeSelect: (String) -> Unit,
     onPickScan: () -> Unit,
     onClearScan: () -> Unit,
+    onToggleStrikeOnDelete: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -159,24 +165,28 @@ private fun ComposeContent(
                     onClearScan = onClearScan
                 )
             } else {
-                Text(
-                    "每一段为独立片段,可单独划掉(保留痕迹,服务端仍存原文)。",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(6.dp))
-                state.segments.forEachIndexed { index, seg ->
-                    SegmentEditorRow(
-                        segment = seg,
-                        index = index,
-                        canRemove = state.segments.size > 1,
-                        onTextChange = { onSegmentTextChange(index, it) },
-                        onToggleStrikethrough = { onSegmentStyleToggle(index) },
-                        onAddAfter = { onSegmentAddAfter(index) },
-                        onRemove = { onSegmentRemove(index) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = state.strikeOnDelete, onCheckedChange = { onToggleStrikeOnDelete() })
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (state.strikeOnDelete)
+                            "涂改模式开:停顿 ${state.strikeOnDeleteWindowMs / 1000} 秒后再 backspace,删字保留为划线"
+                        else "涂改模式关",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
                     )
-                    Spacer(Modifier.height(6.dp))
+                    val hasSelection = !state.editorSelection.collapsed
+                    TextButton(enabled = hasSelection, onClick = onStrikeSelection) { Text("划掉所选") }
+                    TextButton(enabled = hasSelection, onClick = onUnstrikeSelection) { Text("撤销划线") }
                 }
+                Spacer(Modifier.height(6.dp))
+                LetterBodyEditor(
+                    text = state.editorText,
+                    selection = state.editorSelection,
+                    struckMask = state.struckMask,
+                    onChange = onEditorChange,
+                )
             }
             Spacer(Modifier.height(16.dp))
 
@@ -384,47 +394,43 @@ private fun StickerPickerDialog(
 }
 
 @Composable
-private fun SegmentEditorRow(
-    segment: TextSegment,
-    index: Int,
-    canRemove: Boolean,
-    onTextChange: (String) -> Unit,
-    onToggleStrikethrough: () -> Unit,
-    onAddAfter: () -> Unit,
-    onRemove: () -> Unit
+private fun LetterBodyEditor(
+    text: String,
+    selection: androidx.compose.ui.text.TextRange,
+    struckMask: List<Boolean>,
+    onChange: (TextFieldValue) -> Unit,
 ) {
-    val isStruck = segment.style == STYLE_STRIKETHROUGH
-    val labelText = buildString {
-        append("段 ")
-        append(index + 1)
-        if (isStruck) append(" · 已划掉")
+    val struckColor = MaterialTheme.colorScheme.onSurfaceVariant
+    // 字符级 visualTransformation:同位置字符若 struck=true,加 line-through 染色;
+    // 长度不变,所以 OffsetMapping.Identity 足够,光标可在划线 / 非划线之间自由移动。
+    val transformation = remember(struckMask, struckColor) {
+        strikeMaskTransformation(struckMask, struckColor)
     }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = segment.text,
-            onValueChange = onTextChange,
-            label = { Text(labelText) },
-            textStyle = if (isStruck) {
-                TextStyle(textDecoration = TextDecoration.LineThrough)
-            } else {
-                TextStyle.Default
-            },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
-            minLines = 2
-        )
-        Row(modifier = Modifier.fillMaxWidth()) {
-            TextButton(onClick = onToggleStrikethrough) {
-                Text(if (isStruck) "取消划掉" else "划掉本段")
-            }
-            TextButton(onClick = onAddAfter) { Text("下方新增段") }
-            Spacer(Modifier.weight(1f))
-            TextButton(
-                enabled = canRemove,
-                onClick = onRemove
-            ) { Text("删除") }
-        }
-    }
+    OutlinedTextField(
+        value = TextFieldValue(text = text, selection = selection),
+        onValueChange = onChange,
+        label = { Text(if (struckMask.any { it }) "信件正文(含划痕)" else "信件正文") },
+        visualTransformation = transformation,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp),
+        minLines = 8
+    )
 }
+
+private fun strikeMaskTransformation(mask: List<Boolean>, color: Color): VisualTransformation =
+    VisualTransformation { input ->
+        val annotated = buildAnnotatedString {
+            input.text.forEachIndexed { i, c ->
+                if (mask.getOrElse(i) { false }) {
+                    withStyle(
+                        SpanStyle(textDecoration = TextDecoration.LineThrough, color = color)
+                    ) { append(c) }
+                } else {
+                    append(c)
+                }
+            }
+        }
+        TransformedText(annotated, OffsetMapping.Identity)
+    }
 
 @Composable
 private fun ScanEditorSection(

@@ -1,5 +1,7 @@
 package com.luvtter.app.ui.compose
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,6 +25,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+
+@OptIn(ExperimentalTime::class)
+private fun currentTimeMillis(): Long = Clock.System.now().toEpochMilliseconds()
 
 class ComposeViewModel(
     savedStateHandle: SavedStateHandle,
@@ -80,10 +87,13 @@ class ComposeViewModel(
         val s = detail.summary
         val loaded = detail.body?.segments.orEmpty()
         val segs = if (loaded.isNotEmpty()) loaded else listOf(TextSegment(""))
+        val totalLen = segs.sumOf { it.text.length }
         _state.update { prev ->
             prev.copy(
                 recipientHandle = s.recipient?.handle.orEmpty(),
                 segments = segs,
+                charTimes = List(totalLen) { 0L },
+                editorSelection = TextRange(totalLen),
                 mode = if (detail.contentType == "scan") "scan" else "text",
                 // detail.bodyUrl 是重签的 MinIO GET URL;objectKey 本身服务端不暴露,
                 // 草稿已绑定就不需要重传,upsertDraft 也不会再往 update 里塞 scanObjectKey。
@@ -103,31 +113,157 @@ class ComposeViewModel(
 
     fun onRecipientHandleChange(v: String) = _state.update { it.copy(recipientHandle = v.trim()) }
 
-    fun onSegmentTextChange(index: Int, text: String) = _state.update { st ->
-        if (index !in st.segments.indices) return@update st
-        st.copy(segments = st.segments.toMutableList().also { it[index] = it[index].copy(text = text) })
-    }
-
-    fun onSegmentStyleToggle(index: Int) = _state.update { st ->
-        if (index !in st.segments.indices) return@update st
-        val cur = st.segments[index]
-        val next = if (cur.style == STYLE_STRIKETHROUGH) null else STYLE_STRIKETHROUGH
-        st.copy(segments = st.segments.toMutableList().also { it[index] = cur.copy(style = next) })
-    }
-
-    fun onSegmentAddAfter(index: Int) = _state.update { st ->
-        val i = index.coerceIn(-1, st.segments.lastIndex)
-        val next = st.segments.toMutableList().apply { add(i + 1, TextSegment("")) }
-        st.copy(segments = next)
-    }
-
-    fun onSegmentRemove(index: Int) = _state.update { st ->
-        if (index !in st.segments.indices) return@update st
-        if (st.segments.size <= 1) {
-            st.copy(segments = listOf(TextSegment("")))
-        } else {
-            st.copy(segments = st.segments.toMutableList().also { it.removeAt(index) })
+    /**
+     * 单一 OutlinedTextField 的统一编辑入口。把字符级别的 diff(insert / delete / replace)落回
+     * segments 数据结构;在「涂改模式 + 跨窗口 / 已处于 streak」时,删除部分被改成「保留原文 + 标 strikethrough」,
+     * 视觉上原地 inline 划线,而不是真正缩短文本。
+     */
+    fun onEditorChange(new: TextFieldValue) {
+        val st = _state.value
+        val oldText = st.editorText
+        val newText = new.text
+        if (newText == oldText) {
+            _state.update { it.copy(editorSelection = new.selection) }
+            return
         }
+        val now = currentTimeMillis()
+
+        val prefix = run {
+            val n = minOf(oldText.length, newText.length)
+            var i = 0
+            while (i < n && oldText[i] == newText[i]) i++
+            i
+        }
+        val suffix = run {
+            val n = minOf(oldText.length - prefix, newText.length - prefix)
+            var i = 0
+            while (i < n && oldText[oldText.length - 1 - i] == newText[newText.length - 1 - i]) i++
+            i
+        }
+        val oldMid = oldText.length - prefix - suffix
+        val newMid = newText.length - prefix - suffix
+
+        val mask = st.struckMask.toMutableList()
+        val times = st.charTimes.toMutableList()
+        // 防御:历史草稿/初始态可能 mask/times 长度短于 text;补齐为旧文本长度。
+        while (mask.size < oldText.length) mask.add(false)
+        while (times.size < oldText.length) times.add(0L)
+
+        // 每字符判定:被删的所有字符若都"老于窗口"(t==0 视为远古/草稿)→ 整段划线;
+        // 否则按真删处理。这样刚键入的新字符 backspace 仍走真删,不会被自己划掉。
+        val canStrikeRange = oldMid > 0 && st.strikeOnDelete &&
+            (prefix until prefix + oldMid).all { i ->
+                val t = times.getOrElse(i) { 0L }
+                t == 0L || (now - t) > st.strikeOnDeleteWindowMs
+            }
+
+        val resultText: String
+        val newCursor: Int
+        when {
+            // 纯插入:新字符获得当前时间戳
+            oldMid == 0 && newMid > 0 -> {
+                for (k in 0 until newMid) {
+                    mask.add(prefix + k, false)
+                    times.add(prefix + k, now)
+                }
+                resultText = newText
+                newCursor = prefix + newMid
+            }
+            // 纯删除
+            oldMid > 0 && newMid == 0 -> {
+                if (canStrikeRange) {
+                    for (i in prefix until prefix + oldMid) mask[i] = true
+                    resultText = oldText
+                    // 光标移到划痕「左边」,下一次 backspace 才能继续向左划
+                    newCursor = prefix
+                } else {
+                    repeat(oldMid) {
+                        mask.removeAt(prefix)
+                        times.removeAt(prefix)
+                    }
+                    resultText = newText
+                    newCursor = prefix
+                }
+            }
+            // 替换(选中后输入,或删改混合)
+            oldMid > 0 && newMid > 0 -> {
+                if (canStrikeRange) {
+                    for (i in prefix until prefix + oldMid) mask[i] = true
+                    val insertedSlice = newText.substring(prefix, prefix + newMid)
+                    resultText = oldText.substring(0, prefix + oldMid) + insertedSlice +
+                        oldText.substring(prefix + oldMid)
+                    for (k in 0 until newMid) {
+                        mask.add(prefix + oldMid + k, false)
+                        times.add(prefix + oldMid + k, now)
+                    }
+                    newCursor = prefix + oldMid + newMid
+                } else {
+                    repeat(oldMid) {
+                        mask.removeAt(prefix)
+                        times.removeAt(prefix)
+                    }
+                    for (k in 0 until newMid) {
+                        mask.add(prefix + k, false)
+                        times.add(prefix + k, now)
+                    }
+                    resultText = newText
+                    newCursor = prefix + newMid
+                }
+            }
+            else -> {
+                resultText = newText
+                newCursor = new.selection.start
+            }
+        }
+
+        _state.update {
+            it.copy(
+                segments = rebuildSegments(resultText, mask),
+                charTimes = times,
+                editorSelection = TextRange(newCursor.coerceIn(0, resultText.length)),
+            )
+        }
+    }
+
+    fun strikeSelection() = _state.update { st ->
+        val sel = st.editorSelection
+        if (sel.collapsed) return@update st
+        val mask = st.struckMask.toMutableList()
+        for (i in sel.min until sel.max.coerceAtMost(mask.size)) mask[i] = true
+        st.copy(segments = rebuildSegments(st.editorText, mask))
+    }
+
+    fun unstrikeSelection() = _state.update { st ->
+        val sel = st.editorSelection
+        if (sel.collapsed) return@update st
+        val mask = st.struckMask.toMutableList()
+        for (i in sel.min until sel.max.coerceAtMost(mask.size)) mask[i] = false
+        st.copy(segments = rebuildSegments(st.editorText, mask))
+    }
+
+    fun toggleStrikeOnDelete() = _state.update { it.copy(strikeOnDelete = !it.strikeOnDelete) }
+
+    private fun rebuildSegments(text: String, mask: List<Boolean>): List<TextSegment> {
+        if (text.isEmpty()) return listOf(TextSegment(""))
+        val out = mutableListOf<TextSegment>()
+        var startIdx = 0
+        var curStruck = mask.getOrElse(0) { false }
+        for (i in 1..text.length) {
+            val nextStruck = mask.getOrElse(i) { curStruck }
+            if (i == text.length || nextStruck != curStruck) {
+                out.add(
+                    TextSegment(
+                        text = text.substring(startIdx, i),
+                        style = if (curStruck) STYLE_STRIKETHROUGH else null
+                    )
+                )
+                if (i < text.length) {
+                    startIdx = i
+                    curStruck = nextStruck
+                }
+            }
+        }
+        return out
     }
 
     fun onStampSelect(id: String) = _state.update { it.copy(stampId = id) }

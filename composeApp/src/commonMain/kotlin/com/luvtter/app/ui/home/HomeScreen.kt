@@ -2,6 +2,7 @@ package com.luvtter.app.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -32,6 +33,7 @@ fun HomeScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val user = vm.session.collectAsStateWithLifecycle().value?.user
     val uriHandler = LocalUriHandler.current
+    val onOpenExport: (String) -> Unit = { url -> runCatching { uriHandler.openUri(url) } }
     var showNotifications by remember { mutableStateOf(false) }
     var showSwitchLocation by remember { mutableStateOf(false) }
     var showFinalizeHandle by remember { mutableStateOf(false) }
@@ -91,10 +93,9 @@ fun HomeScreen(
         onHide = vm::hide,
         onUnhide = vm::unhide,
         onRequestExport = {
-            vm.requestExport { result ->
-                runCatching { uriHandler.openUri(result.downloadUrl) }
-            }
-        }
+            vm.requestExport { result -> onOpenExport(result.downloadUrl) }
+        },
+        onOpenExportLink = onOpenExport,
     )
 }
 
@@ -140,6 +141,7 @@ private fun HomeContent(
     onHide: (String) -> Unit,
     onUnhide: (String) -> Unit,
     onRequestExport: () -> Unit,
+    onOpenExportLink: (String) -> Unit,
 ) {
     val currentAddress = remember(user, state.addresses) {
         state.addresses.firstOrNull { it.id == user?.currentAddressId }
@@ -216,11 +218,28 @@ private fun HomeContent(
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        "已导出 ${ex.letterCount} 封信(${ex.sizeBytes / 1024} KB),链接 ${ex.expiresInSeconds / 60} 分钟内有效",
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "已导出 ${ex.letterCount} 封信(${ex.sizeBytes / 1024} KB),链接 ${ex.expiresInSeconds / 60} 分钟内有效",
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { onOpenExportLink(ex.downloadUrl) }) {
+                                Text("打开下载")
+                            }
+                        }
+                        SelectionContainer {
+                            Text(
+                                ex.downloadUrl,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenExportLink(ex.downloadUrl) }
+                            )
+                        }
+                    }
                 }
             }
 

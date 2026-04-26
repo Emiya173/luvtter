@@ -1,5 +1,6 @@
 package com.luvtter.app.ui.compose
 
+import androidx.compose.ui.text.TextRange
 import com.luvtter.contract.dto.AddressDto
 import com.luvtter.contract.dto.AttachmentDto
 import com.luvtter.contract.dto.ContactDto
@@ -49,7 +50,34 @@ data class ComposeUiState(
     val scanPreviewUrl: String? = null,
     val scanContentType: String? = null,
     val scanUploading: Boolean = false,
+
+    /**
+     * Stage 3「涂改模式」：开启后,在 [strikeOnDeleteWindowMs] 之外的 backspace 不再真正删字,
+     * 而是把被删的尾部切成一个 strikethrough 段保留下来,模仿手写信划掉的痕迹。
+     * 仅作用于「末尾后缀删除」场景(newText 是 oldText 的 prefix),其它编辑(中间删、整体替换)按原样落盘。
+     */
+    val strikeOnDelete: Boolean = false,
+    /** 一个字符若在此毫秒数内刚被键入,backspace 走真删;超过则按「涂改」处理为划线。默认 3 秒。 */
+    val strikeOnDeleteWindowMs: Long = 3_000L,
+    /**
+     * 与 editorText 等长的「该字符首次输入时间」(epoch ms,0 表示来自历史草稿,视为远古)。
+     * 用每字符时间戳取代全局 lastEditAt,这样:刚敲的新字符 backspace 真删,旧字符 backspace 自动划线;
+     * 键入新字符不会"重置"前面已敲字符的时间。
+     */
+    val charTimes: List<Long> = emptyList(),
+    /** 编辑器光标 / 选区。在 segments 之外单独维护,因为 selection 不属于落盘内容。 */
+    val editorSelection: TextRange = TextRange.Zero,
 ) {
+    /** 把 segments 拼成扁平字符串,作为 OutlinedTextField 的 value。 */
+    val editorText: String get() = segments.joinToString("") { it.text }
+    /** 与 editorText 长度一致的「每个字符是否被划掉」mask,用于 visualTransformation 染色。 */
+    val struckMask: List<Boolean> get() = buildList {
+        segments.forEach { s ->
+            val struck = s.style == STYLE_STRIKETHROUGH
+            repeat(s.text.length) { add(struck) }
+        }
+    }
+
     val canSaveDraft: Boolean
         get() = !loading && recipientHandle.isNotBlank() && when (mode) {
             "scan" -> scanObjectKey != null || scanBound
