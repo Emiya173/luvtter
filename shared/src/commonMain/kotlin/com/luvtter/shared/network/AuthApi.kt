@@ -48,5 +48,11 @@ class MeApi(private val client: HttpClient) {
     suspend fun revokeSession(id: String) {
         client.delete("/api/v1/me/sessions/$id").ensureSuccess()
     }
+
+    suspend fun onboardingState(): OnboardingStateDto =
+        client.get("/api/v1/me/onboarding-state").unwrap()
+
+    suspend fun updateOnboardingState(req: UpdateOnboardingStateRequest): OnboardingStateDto =
+        client.patch("/api/v1/me/onboarding-state") { setBody(req) }.unwrap()
 }
 

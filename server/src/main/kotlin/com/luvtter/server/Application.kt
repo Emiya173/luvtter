@@ -68,7 +68,7 @@ fun Application.module() {
     routing {
         helloRoutes()
         authRoutes(get(), get())
-        meRoutes(get(), get(), get())
+        meRoutes(get(), get(), get(), get())
         addressRoutes(get())
         contactRoutes(get())
         catalogRoutes(get())

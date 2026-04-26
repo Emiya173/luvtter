@@ -66,6 +66,7 @@ private val USER_TABLES = listOf(
     "letter_contents",
     "letters",
     "daily_rewards",
+    "user_onboarding_states",
     "user_assets",
     "blocks",
     "contacts",

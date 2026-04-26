@@ -43,6 +43,11 @@ fun HomeScreen(
         showFinalizeHandle = showFinalizeHandle,
         showSearch = showSearch,
         onCompose = onCompose,
+        onStartFirstLetter = {
+            vm.dismissFirstLetterPrompt()
+            onCompose()
+        },
+        onDismissFirstLetterPrompt = vm::dismissFirstLetterPrompt,
         onAddresses = onAddresses,
         onContacts = onContacts,
         onSessions = onSessions,
@@ -97,6 +102,8 @@ private fun HomeContent(
     showFinalizeHandle: Boolean,
     showSearch: Boolean,
     onCompose: () -> Unit,
+    onStartFirstLetter: () -> Unit,
+    onDismissFirstLetterPrompt: () -> Unit,
     onAddresses: () -> Unit,
     onContacts: () -> Unit,
     onSessions: () -> Unit,
@@ -184,6 +191,13 @@ private fun HomeContent(
                         }
                     }
                 }
+            }
+
+            if (state.showFirstLetterPrompt) {
+                FirstLetterPromptCard(
+                    onStart = onStartFirstLetter,
+                    onDismiss = onDismissFirstLetterPrompt
+                )
             }
 
             PrimaryTabRow(selectedTabIndex = state.tab.ordinal) {
@@ -524,6 +538,33 @@ private fun NotificationsDialog(
         confirmButton = { TextButton(onClick = onMarkAllRead) { Text("全部已读") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
     )
+}
+
+@Composable
+private fun FirstLetterPromptCard(
+    onStart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text("给未来的自己,寄第一封信", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "信会按你选的邮票慢慢上路,几小时到几天后送达。先写一句话给未来打个招呼?",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text("暂不") }
+                Spacer(Modifier.width(4.dp))
+                FilledTonalButton(onClick = onStart) { Text("现在写") }
+            }
+        }
+    }
 }
 
 @Composable

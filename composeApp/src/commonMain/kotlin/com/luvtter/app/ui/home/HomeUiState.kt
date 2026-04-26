@@ -21,5 +21,8 @@ data class HomeUiState(
     val addresses: List<AddressDto> = emptyList(),
     val folders: List<FolderDto> = emptyList(),
     val selectedFolderId: String? = null,
-    val notifications: List<NotificationDto> = emptyList()
+    val notifications: List<NotificationDto> = emptyList(),
+
+    /** 服务端推算的引导卡片可见性 (!dismissed && !firstLetterSent),首登一次性展示。 */
+    val showFirstLetterPrompt: Boolean = false,
 )

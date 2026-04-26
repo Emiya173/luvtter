@@ -165,6 +165,14 @@ object DailyRewards : Table("daily_rewards") {
     override val primaryKey = PrimaryKey(userId, rewardDate)
 }
 
+object UserOnboardingStates : Table("user_onboarding_states") {
+    val userId = uuid("user_id").references(Users.id)
+    val firstLetterPromptDismissed = bool("first_letter_prompt_dismissed").default(false)
+    val firstLetterSent = bool("first_letter_sent").default(false)
+    val updatedAt = timestampWithTimeZone("updated_at")
+    override val primaryKey = PrimaryKey(userId)
+}
+
 private val lenientJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
 
 object Letters : Table("letters") {

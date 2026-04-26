@@ -43,7 +43,8 @@ private val log = KotlinLogging.logger {}
 @OptIn(ExperimentalUuidApi::class)
 class LetterService(
     private val storage: StorageService,
-    private val events: EventGenerator = EventGenerator()
+    private val events: EventGenerator = EventGenerator(),
+    private val onboarding: com.luvtter.server.user.OnboardingService = com.luvtter.server.user.OnboardingService(),
 ) {
 
     // --- 草稿 ---
@@ -290,6 +291,7 @@ class LetterService(
         }
 
         val summary = buildSummary(Letters.selectAll().where { Letters.id eq id }.first(), senderId)
+        onboarding.markFirstLetterSent(senderId)
         log.info { "letter.send id=$id from=$senderId to=$recipientId distance=$distance tier=${stamp[Stamps.tier]} deliveryAt=$deliveryAt" }
         SendResultDto(
             letter = summary,

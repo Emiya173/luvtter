@@ -3,6 +3,7 @@ package com.luvtter.server.auth
 import com.luvtter.contract.dto.*
 import com.luvtter.server.common.parseId
 import com.luvtter.server.user.AddressService
+import com.luvtter.server.user.OnboardingService
 import com.luvtter.server.user.UserService
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -35,7 +36,12 @@ fun Route.authRoutes(authService: AuthService, userService: UserService) {
     }
 }
 
-fun Route.meRoutes(userService: UserService, addressService: AddressService, authService: AuthService) {
+fun Route.meRoutes(
+    userService: UserService,
+    addressService: AddressService,
+    authService: AuthService,
+    onboardingService: OnboardingService,
+) {
     authenticate("auth-jwt") {
         route("/api/v1/me/sessions") {
             get {
@@ -72,6 +78,15 @@ fun Route.meRoutes(userService: UserService, addressService: AddressService, aut
                 val uid = call.principal<JWTPrincipal>()!!.userId()
                 val req = call.receive<SetCurrentAddressRequest>()
                 call.respond(ApiResponse(userService.setCurrentAddress(uid, parseId(req.addressId))))
+            }
+            get("/onboarding-state") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                call.respond(ApiResponse(onboardingService.get(uid)))
+            }
+            patch("/onboarding-state") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val req = call.receive<UpdateOnboardingStateRequest>()
+                call.respond(ApiResponse(onboardingService.update(uid, req)))
             }
         }
         get("/api/v1/users/by-handle/{handle}/addresses") {

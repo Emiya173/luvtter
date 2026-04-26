@@ -17,6 +17,7 @@ import com.luvtter.server.tasks.OcrIndexService
 import com.luvtter.server.tasks.OcrTaskQuery
 import com.luvtter.server.user.AddressService
 import com.luvtter.server.user.ContactService
+import com.luvtter.server.user.OnboardingService
 import com.luvtter.server.user.UserService
 import io.ktor.server.config.ApplicationConfig
 import org.koin.core.module.dsl.singleOf
@@ -43,6 +44,7 @@ val authModule = module {
 val userModule = module {
     singleOf(::AddressService)
     singleOf(::ContactService)
+    singleOf(::OnboardingService)
 }
 
 val stampModule = module {

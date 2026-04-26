@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.luvtter.contract.dto.CreateFolderRequest
 import com.luvtter.contract.dto.FinalizeHandleRequest
 import com.luvtter.contract.dto.LetterSummaryDto
+import com.luvtter.contract.dto.UpdateOnboardingStateRequest
 import com.luvtter.contract.dto.UserDto
 import com.luvtter.shared.auth.TokenStore
 import com.luvtter.shared.network.AddressApi
@@ -90,6 +91,21 @@ class HomeViewModel(
         runCatching { _state.update { it.copy(folders = folders.list()) } }
         runCatching { _state.update { it.copy(notifications = notifications.list()) } }
         runCatching { _state.update { it.copy(unread = notifications.unreadCount()) } }
+        runCatching {
+            val ob = me.onboardingState()
+            _state.update { it.copy(showFirstLetterPrompt = ob.showFirstLetterPrompt) }
+        }
+    }
+
+    fun dismissFirstLetterPrompt() {
+        _state.update { it.copy(showFirstLetterPrompt = false) }
+        viewModelScope.launch {
+            runCatching {
+                me.updateOnboardingState(
+                    UpdateOnboardingStateRequest(firstLetterPromptDismissed = true)
+                )
+            }
+        }
     }
 
     fun reloadLetters() { viewModelScope.launch { reload() } }
