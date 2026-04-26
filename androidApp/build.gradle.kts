@@ -36,6 +36,7 @@ dependencies {
     implementation(project(":composeApp"))
 
     implementation(libs.androidx.activity.compose)
+    implementation(libs.android.material)
 
     implementation(libs.filekit.core)
     implementation(libs.filekit.dialogs)
