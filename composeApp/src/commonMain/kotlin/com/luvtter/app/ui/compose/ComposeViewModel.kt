@@ -15,6 +15,7 @@ import com.luvtter.contract.dto.SealDraftRequest
 import com.luvtter.contract.dto.TextSegment
 import com.luvtter.contract.dto.UpdateDraftRequest
 import com.luvtter.app.platform.FilePicker
+import com.luvtter.app.ui.common.formatLocalDateTime
 import com.luvtter.shared.network.AddressApi
 import com.luvtter.shared.network.CatalogApi
 import com.luvtter.shared.network.ContactApi
@@ -128,20 +129,53 @@ class ComposeViewModel(
         }
         val now = currentTimeMillis()
 
-        val prefix = run {
-            val n = minOf(oldText.length, newText.length)
-            var i = 0
-            while (i < n && oldText[i] == newText[i]) i++
-            i
+        // 优先用「新光标位置」消歧:重复字符场景下,贪心前/后缀会把删除点错放到末尾,
+        // 而 Compose 在编辑后告诉我们的 selection.start 才是真实的编辑位置。
+        val cursor = new.selection.start.coerceIn(0, newText.length)
+        val lengthDiff = newText.length - oldText.length
+        var prefix = -1
+        var oldMid = 0
+        var newMid = 0
+        when {
+            lengthDiff < 0 -> { // 净删除
+                val p = cursor
+                val om = -lengthDiff
+                if (p + om <= oldText.length &&
+                    oldText.regionMatches(0, newText, 0, p) &&
+                    oldText.regionMatches(p + om, newText, p, oldText.length - p - om)
+                ) {
+                    prefix = p; oldMid = om; newMid = 0
+                }
+            }
+            lengthDiff > 0 -> { // 净插入
+                val nm = lengthDiff
+                val p = (cursor - nm).coerceAtLeast(0)
+                if (p <= oldText.length &&
+                    oldText.regionMatches(0, newText, 0, p) &&
+                    oldText.regionMatches(p, newText, p + nm, oldText.length - p)
+                ) {
+                    prefix = p; oldMid = 0; newMid = nm
+                }
+            }
         }
-        val suffix = run {
-            val n = minOf(oldText.length - prefix, newText.length - prefix)
-            var i = 0
-            while (i < n && oldText[oldText.length - 1 - i] == newText[newText.length - 1 - i]) i++
-            i
+        // 上面没命中(等长替换 / 多区段编辑 / 光标提示与文本不一致)→ 退回贪心前后缀匹配
+        if (prefix < 0) {
+            val p = run {
+                val n = minOf(oldText.length, newText.length)
+                var i = 0
+                while (i < n && oldText[i] == newText[i]) i++
+                i
+            }
+            val s = run {
+                val n = minOf(oldText.length - p, newText.length - p)
+                var i = 0
+                while (i < n && oldText[oldText.length - 1 - i] == newText[newText.length - 1 - i]) i++
+                i
+            }
+            prefix = p
+            oldMid = oldText.length - p - s
+            newMid = newText.length - p - s
         }
-        val oldMid = oldText.length - prefix - suffix
-        val newMid = newText.length - prefix - suffix
 
         val mask = st.struckMask.toMutableList()
         val times = st.charTimes.toMutableList()
@@ -405,7 +439,10 @@ class ComposeViewModel(
                 val id = upsertDraft()
                 letters.send(id)
             }.onSuccess { result ->
-                _state.update { it.copy(status = "已寄出，预计送达: ${result.estimatedDeliveryAt}") }
+                _state.update {
+                    val pretty = formatLocalDateTime(result.estimatedDeliveryAt) ?: result.estimatedDeliveryAt
+                    it.copy(status = "已寄出，预计送达: $pretty")
+                }
                 onSent()
             }.onFailure { e ->
                 _state.update { it.copy(status = "寄信失败: ${e.message}") }
@@ -421,7 +458,10 @@ class ComposeViewModel(
                 val id = upsertDraft()
                 letters.seal(id, SealDraftRequest(isoTime))
             }.onSuccess {
-                _state.update { it.copy(sealedUntil = isoTime, status = "已封存至 $isoTime") }
+                _state.update {
+                    val pretty = formatLocalDateTime(isoTime) ?: isoTime
+                    it.copy(sealedUntil = isoTime, status = "已封存至 $pretty")
+                }
             }.onFailure { e ->
                 _state.update { it.copy(status = "封存失败: ${e.message}") }
             }

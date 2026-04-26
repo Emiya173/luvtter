@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.luvtter.app.ui.common.formatLocalDateTime
 import com.luvtter.contract.dto.AddressDto
 import com.luvtter.contract.dto.FolderDto
 import com.luvtter.contract.dto.LetterSummaryDto
@@ -506,7 +507,7 @@ private fun LetterRow(
         val time = l.deliveredAt ?: l.deliveryAt ?: l.sentAt
         Row(verticalAlignment = Alignment.CenterVertically) {
             time?.let {
-                Text(it.take(19).replace('T', ' '), style = MaterialTheme.typography.labelSmall)
+                Text(formatLocalDateTime(it) ?: it, style = MaterialTheme.typography.labelSmall)
             }
             if (l.photoCount > 0 || l.stickerCount > 0) {
                 Spacer(Modifier.weight(1f))
@@ -566,7 +567,7 @@ private fun NotificationsDialog(
                             Text(n.title, style = MaterialTheme.typography.bodyMedium)
                             n.preview?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(n.createdAt.take(19).replace('T', ' '), style = MaterialTheme.typography.labelSmall)
+                                Text(formatLocalDateTime(n.createdAt) ?: n.createdAt, style = MaterialTheme.typography.labelSmall)
                                 Spacer(Modifier.weight(1f))
                                 if (n.addressId != null) {
                                     TextButton(onClick = { onSwitchToAddress(n.addressId!!) }) { Text("切到 ${n.addressLabel ?: "该地址"}") }

@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.luvtter.app.ui.common.formatLocalDateTime
 import com.luvtter.contract.dto.SessionDto
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -90,11 +91,11 @@ private fun SessionRow(session: SessionDto, revoking: Boolean, onRevoke: () -> U
             val platform = session.platform?.let { " · $it" } ?: ""
             Text("$device$platform", style = MaterialTheme.typography.titleSmall)
             Text(
-                "最近活跃: ${session.lastActiveAt}",
+                "最近活跃: ${formatLocalDateTime(session.lastActiveAt) ?: session.lastActiveAt}",
                 style = MaterialTheme.typography.labelSmall
             )
             Text(
-                "到期: ${session.expiresAt}",
+                "到期: ${formatLocalDateTime(session.expiresAt) ?: session.expiresAt}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

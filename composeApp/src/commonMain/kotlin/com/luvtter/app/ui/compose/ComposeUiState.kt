@@ -56,7 +56,7 @@ data class ComposeUiState(
      * 而是把被删的尾部切成一个 strikethrough 段保留下来,模仿手写信划掉的痕迹。
      * 仅作用于「末尾后缀删除」场景(newText 是 oldText 的 prefix),其它编辑(中间删、整体替换)按原样落盘。
      */
-    val strikeOnDelete: Boolean = false,
+    val strikeOnDelete: Boolean = true,
     /** 一个字符若在此毫秒数内刚被键入,backspace 走真删;超过则按「涂改」处理为划线。默认 3 秒。 */
     val strikeOnDeleteWindowMs: Long = 3_000L,
     /**

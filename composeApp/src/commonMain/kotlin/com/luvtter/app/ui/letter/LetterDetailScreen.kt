@@ -18,6 +18,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.luvtter.app.ui.common.formatLocalDateTime
 import com.luvtter.contract.dto.AttachmentDto
 import com.luvtter.contract.dto.StickerDto
 import org.koin.compose.viewmodel.koinViewModel
@@ -91,8 +92,8 @@ private fun LetterDetailContent(
             }
             Spacer(Modifier.height(8.dp))
             Text("状态: ${s.status}${s.transitStage?.let { " ($it)" } ?: ""}", style = MaterialTheme.typography.labelMedium)
-            s.deliveryAt?.let { Text("预计送达: $it", style = MaterialTheme.typography.labelSmall) }
-            s.deliveredAt?.let { Text("送达时间: $it", style = MaterialTheme.typography.labelSmall) }
+            s.deliveryAt?.let { Text("预计送达: ${formatLocalDateTime(it) ?: it}", style = MaterialTheme.typography.labelSmall) }
+            s.deliveredAt?.let { Text("送达时间: ${formatLocalDateTime(it) ?: it}", style = MaterialTheme.typography.labelSmall) }
             if (s.hidden) {
                 Spacer(Modifier.height(4.dp))
                 Text("（这封信已从你的箱子中隐藏）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)

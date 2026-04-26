@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.luvtter.app.ui.common.FlowChips
+import com.luvtter.app.ui.common.formatLocalDateTime
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -286,7 +287,7 @@ private fun ComposeContent(
 
             state.sealedUntil?.let {
                 Spacer(Modifier.height(8.dp))
-                Text("封存中：$it（期间不可编辑/寄出）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                Text("封存中：${formatLocalDateTime(it) ?: it}（期间不可编辑/寄出）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
 
             state.status?.let {
