@@ -54,5 +54,8 @@ class MeApi(private val client: HttpClient) {
 
     suspend fun updateOnboardingState(req: UpdateOnboardingStateRequest): OnboardingStateDto =
         client.patch("/api/v1/me/onboarding-state") { setBody(req) }.unwrap()
+
+    suspend fun requestExport(): ExportResultDto =
+        client.post("/api/v1/me/export").unwrap()
 }
 

@@ -7,7 +7,9 @@ import io.minio.BucketExistsArgs
 import io.minio.GetPresignedObjectUrlArgs
 import io.minio.MakeBucketArgs
 import io.minio.MinioClient
+import io.minio.PutObjectArgs
 import io.minio.http.Method
+import java.io.ByteArrayInputStream
 import java.util.concurrent.TimeUnit
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -104,6 +106,22 @@ class StorageService(private val cfg: StorageConfig) {
 
     fun isUserOwnedKey(userId: Uuid, key: String): Boolean =
         key.startsWith("users/$userId/")
+
+    fun newExportKey(userId: Uuid): String =
+        "users/$userId/exports/${newId()}.zip"
+
+    /** 服务端直传(用于归档导出 ZIP),不走 presigned PUT。返回写入字节数。 */
+    fun uploadBytes(objectKey: String, bytes: ByteArray, contentType: String): Long {
+        client.putObject(
+            PutObjectArgs.builder()
+                .bucket(cfg.bucket)
+                .`object`(objectKey)
+                .stream(ByteArrayInputStream(bytes), bytes.size.toLong(), -1)
+                .contentType(contentType)
+                .build()
+        )
+        return bytes.size.toLong()
+    }
 
     fun presignPut(objectKey: String, contentType: String, ttlSeconds: Int = cfg.uploadTtlSeconds): String =
         client.getPresignedObjectUrl(

@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.luvtter.contract.dto.AddressDto
@@ -30,6 +31,7 @@ fun HomeScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val user = vm.session.collectAsStateWithLifecycle().value?.user
+    val uriHandler = LocalUriHandler.current
     var showNotifications by remember { mutableStateOf(false) }
     var showSwitchLocation by remember { mutableStateOf(false) }
     var showFinalizeHandle by remember { mutableStateOf(false) }
@@ -87,7 +89,12 @@ fun HomeScreen(
         onDeleteDraft = vm::deleteDraft,
         onExpedite = vm::expedite,
         onHide = vm::hide,
-        onUnhide = vm::unhide
+        onUnhide = vm::unhide,
+        onRequestExport = {
+            vm.requestExport { result ->
+                runCatching { uriHandler.openUri(result.downloadUrl) }
+            }
+        }
     )
 }
 
@@ -131,7 +138,8 @@ private fun HomeContent(
     onDeleteDraft: (String) -> Unit,
     onExpedite: (String) -> Unit,
     onHide: (String) -> Unit,
-    onUnhide: (String) -> Unit
+    onUnhide: (String) -> Unit,
+    onRequestExport: () -> Unit,
 ) {
     val currentAddress = remember(user, state.addresses) {
         state.addresses.firstOrNull { it.id == user?.currentAddressId }
@@ -159,6 +167,9 @@ private fun HomeContent(
                     IconButton(onClick = onContacts) { Text("人", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onAddresses) { Text("址", style = MaterialTheme.typography.labelLarge) }
                     IconButton(onClick = onSessions) { Text("设", style = MaterialTheme.typography.labelLarge) }
+                    IconButton(onClick = onRequestExport, enabled = !state.exporting) {
+                        Text(if (state.exporting) "…" else "导", style = MaterialTheme.typography.labelLarge)
+                    }
                     IconButton(onClick = onRefreshAll) { Text("⟳") }
                     TextButton(onClick = onLogout) { Text("退出") }
                 }
@@ -198,6 +209,19 @@ private fun HomeContent(
                     onStart = onStartFirstLetter,
                     onDismiss = onDismissFirstLetterPrompt
                 )
+            }
+
+            state.lastExport?.let { ex ->
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "已导出 ${ex.letterCount} 封信(${ex.sizeBytes / 1024} KB),链接 ${ex.expiresInSeconds / 60} 分钟内有效",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
             }
 
             PrimaryTabRow(selectedTabIndex = state.tab.ordinal) {

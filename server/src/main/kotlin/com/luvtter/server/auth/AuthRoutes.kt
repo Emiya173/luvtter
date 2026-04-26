@@ -3,6 +3,7 @@ package com.luvtter.server.auth
 import com.luvtter.contract.dto.*
 import com.luvtter.server.common.parseId
 import com.luvtter.server.user.AddressService
+import com.luvtter.server.user.ExportService
 import com.luvtter.server.user.OnboardingService
 import com.luvtter.server.user.UserService
 import io.ktor.http.*
@@ -41,6 +42,7 @@ fun Route.meRoutes(
     addressService: AddressService,
     authService: AuthService,
     onboardingService: OnboardingService,
+    exportService: ExportService,
 ) {
     authenticate("auth-jwt") {
         route("/api/v1/me/sessions") {
@@ -87,6 +89,10 @@ fun Route.meRoutes(
                 val uid = call.principal<JWTPrincipal>()!!.userId()
                 val req = call.receive<UpdateOnboardingStateRequest>()
                 call.respond(ApiResponse(onboardingService.update(uid, req)))
+            }
+            post("/export") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                call.respond(ApiResponse(exportService.exportForUser(uid)))
             }
         }
         get("/api/v1/users/by-handle/{handle}/addresses") {

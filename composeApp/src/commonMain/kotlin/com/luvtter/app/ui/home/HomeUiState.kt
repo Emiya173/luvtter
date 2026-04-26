@@ -1,6 +1,7 @@
 package com.luvtter.app.ui.home
 
 import com.luvtter.contract.dto.AddressDto
+import com.luvtter.contract.dto.ExportResultDto
 import com.luvtter.contract.dto.FolderDto
 import com.luvtter.contract.dto.LetterSummaryDto
 import com.luvtter.contract.dto.NotificationDto
@@ -25,4 +26,9 @@ data class HomeUiState(
 
     /** 服务端推算的引导卡片可见性 (!dismissed && !firstLetterSent),首登一次性展示。 */
     val showFirstLetterPrompt: Boolean = false,
+
+    /** 正在执行 /me/export 请求。期间禁用按钮、显示菊花。 */
+    val exporting: Boolean = false,
+    /** 最近一次导出结果,用于在 UI 上展示「N 封信、X KB,链接 1 小时内有效」提示。 */
+    val lastExport: ExportResultDto? = null,
 )

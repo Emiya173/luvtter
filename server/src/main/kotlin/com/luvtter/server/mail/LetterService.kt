@@ -394,6 +394,19 @@ class LetterService(
         loadDetail(id, viewerId)
     }
 
+    /**
+     * 仅供归档导出使用:校验调用方是 sender / recipient,不强制 delivery_at 时间窗。
+     * 导出归档应包含所有自己的信(包括草稿、在途未到件),便于本地完整备份。
+     */
+    fun detailForExport(viewerId: Uuid, id: Uuid): LetterDetailDto = transaction {
+        val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
+            ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        if (row[Letters.senderId] != viewerId && row[Letters.recipientId] != viewerId) {
+            throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        }
+        loadDetail(id, viewerId)
+    }
+
     fun markRead(viewerId: Uuid, id: Uuid) = transaction {
         val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
             ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")

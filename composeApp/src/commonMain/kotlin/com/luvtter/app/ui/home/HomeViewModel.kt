@@ -3,6 +3,7 @@ package com.luvtter.app.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.luvtter.contract.dto.CreateFolderRequest
+import com.luvtter.contract.dto.ExportResultDto
 import com.luvtter.contract.dto.FinalizeHandleRequest
 import com.luvtter.contract.dto.LetterSummaryDto
 import com.luvtter.contract.dto.UpdateOnboardingStateRequest
@@ -194,6 +195,21 @@ class HomeViewModel(
     }
 
     fun clearError() = _state.update { it.copy(error = null) }
+
+    fun requestExport(onResult: (ExportResultDto) -> Unit) {
+        if (_state.value.exporting) return
+        _state.update { it.copy(exporting = true, error = null) }
+        viewModelScope.launch {
+            runCatching { me.requestExport() }
+                .onSuccess { r ->
+                    _state.update { it.copy(exporting = false, lastExport = r) }
+                    onResult(r)
+                }
+                .onFailure { e ->
+                    _state.update { it.copy(exporting = false, error = "导出失败: ${e.message}") }
+                }
+        }
+    }
 
     private fun mutate(errPrefix: String, block: suspend () -> Unit) {
         viewModelScope.launch {
