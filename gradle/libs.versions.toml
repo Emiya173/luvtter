@@ -35,6 +35,9 @@ minio = "8.5.14"
 # 图片加载 (KMP)
 coil = "3.0.4"
 
+# 文件选择 (KMP)
+filekit = "0.10.0"
+
 # Android 相关
 androidx-activity-compose = "1.10.0"
 androidx-lifecycle = "2.9.0"
@@ -97,6 +100,9 @@ minio = { module = "io.minio:minio", version.ref = "minio" }
 
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+
+filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
+filekit-dialogs = { module = "io.github.vinceglb:filekit-dialogs", version.ref = "filekit" }
 
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
 androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "androidx-lifecycle" }

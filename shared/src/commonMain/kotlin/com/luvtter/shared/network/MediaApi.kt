@@ -69,7 +69,7 @@ class MediaApi(
             setBody(bytes)
         }
         if (!resp.status.isSuccess()) {
-            val body = runCatching { String(resp.bodyAsBytes()) }.getOrDefault("")
+            val body = runCatching { resp.bodyAsBytes().decodeToString() }.getOrDefault("")
             throw RuntimeException("S3 PUT 失败: ${resp.status} ${body.take(200)}")
         }
         runCatching {

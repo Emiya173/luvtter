@@ -1,5 +1,13 @@
 package com.luvtter.app.platform
 
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.dialogs.FileKitMode
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.openFilePicker
+import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.readBytes
+
 data class PickedImage(
     val filename: String,
     val contentType: String,
@@ -9,11 +17,43 @@ data class PickedImage(
 }
 
 /**
- * 平台原生文件选择。返回 null 表示用户取消或当前平台暂不支持。
- * Desktop 用 JFileChooser；Android/iOS 暂为 stub,等接入对应 UI 时补 actual。
+ * 跨平台文件选择,基于 FileKit。返回 null 表示用户取消。
+ * Android 端需要在 Activity.onCreate 里 `FileKit.init(this)` 一次,Desktop / iOS 自动可用。
  */
-expect class FilePicker() {
-    suspend fun pickImage(): PickedImage?
-    /** 选择扫描信文件 (jpg/png/webp + pdf)。 */
-    suspend fun pickScan(): PickedImage?
+class FilePicker {
+    suspend fun pickImage(): PickedImage? = pickWith(
+        title = "选择要附加的图片",
+        extensions = listOf("jpg", "jpeg", "png", "gif", "webp"),
+    )
+
+    suspend fun pickScan(): PickedImage? = pickWith(
+        title = "选择扫描信文件",
+        extensions = listOf("jpg", "jpeg", "png", "webp", "pdf"),
+    )
+
+    private suspend fun pickWith(title: String, extensions: List<String>): PickedImage? {
+        val file: PlatformFile = FileKit.openFilePicker(
+            type = FileKitType.File(extensions),
+            mode = FileKitMode.Single,
+            title = title,
+        ) ?: return null
+        val name = file.name
+        val bytes = file.readBytes()
+        return PickedImage(
+            filename = name,
+            contentType = guessContentType(name),
+            bytes = bytes,
+        )
+    }
+
+    private fun guessContentType(filename: String): String =
+        when (filename.substringAfterLast('.', "").lowercase()) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            "pdf" -> "application/pdf"
+            "json" -> "application/json"
+            else -> "application/octet-stream"
+        }
 }

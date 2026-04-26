@@ -14,6 +14,7 @@
 - testcontainers 1.21.3 集成测试
 - MinIO 对象存储(预签名 PUT/GET 上传链路已通,附件 / 扫描信 / 手写信均以 objectKey 持久化)
 - Coil 3.0.4 KMP(`coil-network-ktor3` 走自定义无 JWT 的 `rawClient`)图片渲染
+- FileKit 0.10 KMP 文件选择器(commonMain 单一实现覆盖 Desktop / Android / iOS,Android `MainActivity` 中 `FileKit.init(this)` 一次)
 
 配套设计文档见仓库doc/的两份 markdown 文件。
 
@@ -196,7 +197,7 @@ alias(libs.plugins.kotlinMultiplatform)
 - 收件:按地址归属、`delivered/read` 状态、**SSE 实时通知推送(含 ping 心跳 + 瞬时信号双轨,upload_done/letter_read 不入库直接广播)**、搜索、收藏、分类夹、
   **收/发件箱行尾 `📷N 🏷M` 附件统计 chip;详情页 Coil3 KMP `AsyncImage` 渲染图片附件,扫描信/手写信通过 `ScannedBody`(图片直显、PDF/JSON 走 `LocalUriHandler.openUri`)展示**
 - 基础设施:Koin 模块化(服务端按域 auth/user/stamp/mail/storage)、客户端 `koin-compose-viewmodel`、
-  logback 日志滚动、**testcontainers-postgres + testcontainers-minio 集成测试(auth / send / attachment / segment / sse / sessions / media-upload / sse-heartbeat-signals / search / notification-quiet-hours / scan-upload / ocr-task-runner / handwriting-upload 十三条 happy path,共 29 用例)**
+  logback 日志滚动、**testcontainers-postgres + testcontainers-minio 集成测试(auth / send / attachment / segment / sse / sessions / media-upload / sse-heartbeat-signals / search / notification-quiet-hours / scan-upload / ocr-task-runner / handwriting-upload / daily-reward-timezone 共 14 条 happy path,33 个用例)**
 - 异步任务管线:**进程内 `AsyncTaskRunner` 协程 + PG `FOR UPDATE SKIP LOCKED` 原子认领 + 失败重试退避;`ocr_index` stub 处理器把扫描信内容写入索引,寄出后立刻可被全文搜索;`GET /api/v1/letters/{id}/ocr-status` 暴露任务状态;Python image-worker 接入只需替换 `OcrIndexService.process` 函数体**
 - 搜索:**全文检索 tsvector + 中文 bigram(`letter_bigram` plpgsql 函数 + `letter_contents` 触发器维护 `index_tsv` GIN 索引,`/api/v1/letters/search?q=...` 走 `index_tsv @@ letter_bigram_query(?)`)**
 - 通知免打扰:**`NotificationPrefsDto` 增加 `quietStart/quietEnd/timezone`,半开区间 + 跨日语义 + IANA 时区(V7 迁移);静默期通知仍落库,但跳过 SSE 推送**
