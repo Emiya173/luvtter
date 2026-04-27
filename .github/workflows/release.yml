@@ -1,0 +1,159 @@
+name: Release
+
+# 在 main 分支打 v* tag(例如 v0.1.0 / v1.2.3-beta1)即触发:
+# 1. 服务端 Ktor fat jar
+# 2. Android debug APK(unsigned;真要走 Play 需另起带签名的 release flow)
+# 3. Desktop 三平台原生包(Linux .deb / macOS .dmg / Windows .msi)
+# 全部 artifact 直接挂到 GitHub Release。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag name to release (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write  # 创建 / 更新 Release + 上传 asset
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+
+jobs:
+  guard-main:
+    name: Guard:tag must point at main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify tag commit is on main
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          git fetch --no-tags --depth=1 origin main
+          TAG_SHA=$(git rev-list -n 1 "$TAG")
+          if ! git merge-base --is-ancestor "$TAG_SHA" origin/main; then
+            echo "::error::Tag $TAG ($TAG_SHA) is not reachable from origin/main; refusing to release."
+            exit 1
+          fi
+          echo "Tag $TAG -> $TAG_SHA is on main."
+
+  server-jar:
+    name: Server fat jar
+    needs: guard-main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build server fat jar
+        run: ./gradlew :server:buildFatJar --no-daemon --stacktrace
+      - name: Stage artifact
+        run: |
+          mkdir -p release-artifacts
+          cp server/build/libs/*-all.jar release-artifacts/server-${{ github.event.inputs.tag || github.ref_name }}.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-jar
+          path: release-artifacts/*.jar
+          retention-days: 1
+
+  android-apk:
+    name: Android debug APK
+    needs: guard-main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Assemble debug APK
+        run: ./gradlew :androidApp:assembleDebug --no-daemon --stacktrace
+      - name: Stage artifact
+        run: |
+          mkdir -p release-artifacts
+          cp androidApp/build/outputs/apk/debug/*.apk \
+             "release-artifacts/luvtter-android-${{ github.event.inputs.tag || github.ref_name }}-debug.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: release-artifacts/*.apk
+          retention-days: 1
+
+  desktop-natives:
+    name: Desktop native package (${{ matrix.os }})
+    needs: guard-main
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            format: deb
+            task: packageDeb
+            ext: deb
+          - os: macos-latest
+            format: dmg
+            task: packageDmg
+            ext: dmg
+          - os: windows-latest
+            format: msi
+            task: packageMsi
+            ext: msi
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build ${{ matrix.format }} package
+        run: ./gradlew :composeApp:${{ matrix.task }} --no-daemon --stacktrace
+        shell: bash
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          # Compose Desktop 把产物丢在 build/compose/binaries/main/<format>/
+          src=$(find composeApp/build/compose/binaries -type f -name "*.${{ matrix.ext }}" | head -n 1)
+          if [ -z "$src" ]; then echo "::error::no .${{ matrix.ext }} produced"; exit 1; fi
+          cp "$src" "release-artifacts/luvtter-desktop-${{ github.event.inputs.tag || github.ref_name }}-${{ matrix.format }}.${{ matrix.ext }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.format }}
+          path: release-artifacts/*.${{ matrix.ext }}
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub Release
+    needs: [server-jar, android-apk, desktop-natives]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+      - name: List artifacts
+        run: ls -lh release-artifacts
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            release-artifacts/*.jar
+            release-artifacts/*.apk
+            release-artifacts/*.deb
+            release-artifacts/*.dmg
+            release-artifacts/*.msi
