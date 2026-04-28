@@ -217,23 +217,68 @@ jobs:
           done
           echo "::error::release asset never became downloadable: $URL"; exit 1
 
-      # 把模板 PKGBUILD 里占位的 pkgver=0.0.0 + url 中的 v0.0.0 替换成真实 tag
-      # (action 自身只负责 updpkgsums + .SRCINFO + push,不处理版本注入)
-      - name: Inject pkgver into PKGBUILD
+      # 不再用第三方 action(KSXGitHub/github-actions-deploy-aur 在 2.7.x 有 bash 选项 bug)
+      # 改成内联步骤:配 SSH → clone AUR repo → 注入 pkgver / sha256 → push。
+      # 整个过程不用 makepkg / updpkgsums(后者要 Arch 容器),sha256 直接对 GitHub Release tar.gz 算。
+      - name: Configure SSH for AUR
         run: |
-          PV="${{ steps.ver.outputs.pkgver }}"
-          sed -i "s/^pkgver=.*/pkgver=${PV}/" aur/luvtter-desktop-bin/PKGBUILD
-          echo "--- PKGBUILD after sed ---"
-          cat aur/luvtter-desktop-bin/PKGBUILD
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          # secret 必须以换行结尾(OpenSSH 私钥格式严格);printf '%s\n' 兜底
+          printf '%s\n' "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t rsa,ecdsa,ed25519 aur.archlinux.org > ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+              User aur
+              IdentityFile ~/.ssh/aur
+              IdentitiesOnly yes
+          EOF
+          chmod 600 ~/.ssh/config
 
-      - name: Publish to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
-        with:
-          pkgname: luvtter-desktop-bin
-          pkgbuild: aur/luvtter-desktop-bin/PKGBUILD
-          commit_username: ${{ secrets.AUR_USERNAME || 'Emiya173' }}
-          commit_email: ${{ secrets.AUR_EMAIL || 'emiyazero173@gmail.com' }}
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: "Release ${{ steps.ver.outputs.tag }}"
-          updpkgsums: true
-          force_push: false
+      - name: Clone AUR repo
+        run: |
+          git clone ssh://aur@aur.archlinux.org/luvtter-desktop-bin.git /tmp/aur-pkg
+          cd /tmp/aur-pkg
+          git config user.name  "${{ secrets.AUR_USERNAME || 'Emiya173' }}"
+          git config user.email "${{ secrets.AUR_EMAIL || 'emiyazero173@gmail.com' }}"
+
+      - name: Compose PKGBUILD + .SRCINFO with real pkgver / sha256
+        run: |
+          set -euo pipefail
+          PV="${{ steps.ver.outputs.pkgver }}"
+          TAG="${{ steps.ver.outputs.tag }}"
+          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/luvtter-desktop-${TAG}-linux-x86_64.tar.gz"
+
+          echo "Downloading tarball to compute sha256..."
+          SHA=$(curl -sfL "$URL" | sha256sum | awk '{print $1}')
+          echo "sha256 = $SHA"
+
+          # 复制模板进 AUR clone 目录
+          cp aur/luvtter-desktop-bin/{PKGBUILD,luvtter-desktop.desktop,.SRCINFO} /tmp/aur-pkg/
+          cd /tmp/aur-pkg
+
+          # 1) PKGBUILD: pkgver + tar.gz 的 sha256(数组第一项,.desktop 留 SKIP)
+          sed -i "s/^pkgver=.*/pkgver=${PV}/" PKGBUILD
+          # sha256sums=('SKIP'\n            'SKIP') —— 替换第一行的 'SKIP'
+          sed -i "0,/sha256sums=('SKIP'/{s|sha256sums=('SKIP'|sha256sums=('${SHA}'|}" PKGBUILD
+
+          # 2) .SRCINFO: 同步 pkgver + 第一处 sha256sums = SKIP
+          sed -i "s|^\tpkgver = .*|\tpkgver = ${PV}|" .SRCINFO
+          sed -i "s|v0.0.0|v${PV}|g" .SRCINFO
+          sed -i "0,/\tsha256sums = SKIP/{s|\tsha256sums = SKIP|\tsha256sums = ${SHA}|}" .SRCINFO
+
+          echo "--- PKGBUILD ---"; cat PKGBUILD
+          echo "--- .SRCINFO ---"; cat .SRCINFO
+
+      - name: Commit and push to AUR
+        run: |
+          cd /tmp/aur-pkg
+          git add PKGBUILD .SRCINFO luvtter-desktop.desktop
+          if git diff --cached --quiet; then
+            echo "Nothing to commit (PKGBUILD already up-to-date for ${{ steps.ver.outputs.tag }})"
+            exit 0
+          fi
+          git commit -m "Release ${{ steps.ver.outputs.tag }}"
+          git push origin master
