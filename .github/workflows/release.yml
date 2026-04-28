@@ -80,8 +80,9 @@ jobs:
       - name: Stage artifact
         run: |
           mkdir -p release-artifacts
+          # assembleDebug 默认产出 universal APK,内含所有 ABI(armeabi-v7a/arm64-v8a/x86/x86_64)
           cp androidApp/build/outputs/apk/debug/*.apk \
-             "release-artifacts/luvtter-android-${{ github.event.inputs.tag || github.ref_name }}-debug.apk"
+             "release-artifacts/luvtter-android-${{ github.event.inputs.tag || github.ref_name }}-universal-debug.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
@@ -89,21 +90,27 @@ jobs:
           retention-days: 1
 
   desktop-natives:
-    name: Desktop native package (${{ matrix.os }})
+    name: Desktop native package (${{ matrix.label }})
     needs: guard-main
     strategy:
       fail-fast: false
       matrix:
         include:
+          # ubuntu-latest = x86_64 Linux
           - os: ubuntu-latest
+            label: linux-x86_64
             format: deb
             task: packageDeb
             ext: deb
+          # macos-latest = Apple Silicon (arm64);Intel Mac 用户需另起 macos-13 矩阵项
           - os: macos-latest
+            label: macos-arm64
             format: dmg
             task: packageDmg
             ext: dmg
+          # windows-latest = x86_64 Windows
           - os: windows-latest
+            label: windows-x86_64
             format: msi
             task: packageMsi
             ext: msi
@@ -125,11 +132,26 @@ jobs:
           # Compose Desktop 把产物丢在 build/compose/binaries/main/<format>/
           src=$(find composeApp/build/compose/binaries -type f -name "*.${{ matrix.ext }}" | head -n 1)
           if [ -z "$src" ]; then echo "::error::no .${{ matrix.ext }} produced"; exit 1; fi
-          cp "$src" "release-artifacts/luvtter-desktop-${{ github.event.inputs.tag || github.ref_name }}-${{ matrix.format }}.${{ matrix.ext }}"
+          cp "$src" "release-artifacts/luvtter-desktop-${{ github.event.inputs.tag || github.ref_name }}-${{ matrix.label }}.${{ matrix.ext }}"
+      # 仅 Linux 多产一份 createDistributable 的 tar.gz —— 给 AUR 用,Arch 友好
+      # packageDeb 会触发 createDistributable,所以产物已经在 build/compose/binaries/main/app/letter-app/
+      - name: Pack createDistributable tarball (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          APP_DIR="composeApp/build/compose/binaries/main/app"
+          if [ ! -d "$APP_DIR/letter-app" ]; then
+            echo "::error::createDistributable output not found at $APP_DIR/letter-app"
+            ls -la "$APP_DIR" || true
+            exit 1
+          fi
+          tar -C "$APP_DIR" -czf \
+            "release-artifacts/luvtter-desktop-${{ github.event.inputs.tag || github.ref_name }}-${{ matrix.label }}.tar.gz" \
+            letter-app
       - uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.format }}
-          path: release-artifacts/*.${{ matrix.ext }}
+          name: desktop-${{ matrix.label }}
+          path: release-artifacts/*
           retention-days: 1
 
   publish:
@@ -157,3 +179,55 @@ jobs:
             release-artifacts/*.deb
             release-artifacts/*.dmg
             release-artifacts/*.msi
+            release-artifacts/*.tar.gz
+
+  aur-publish:
+    name: Publish AUR (luvtter-desktop-bin)
+    needs: publish
+    runs-on: ubuntu-latest
+    # 1) 预发布(tag 含 '-',如 v0.1.0-beta1)不推 AUR
+    # 2) fork 没配 AUR_SSH_PRIVATE_KEY 时整个 job 跳过,而不是 fail 主 release
+    if: ${{ !contains(github.event.inputs.tag || github.ref_name, '-') && github.repository == 'Emiya173/luvtter' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag / version
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VER="${TAG#v}"
+          echo "tag=$TAG"     >> "$GITHUB_OUTPUT"
+          echo "pkgver=$VER"  >> "$GITHUB_OUTPUT"
+
+      - name: Wait for release asset to be downloadable
+        run: |
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.ver.outputs.tag }}/luvtter-desktop-${{ steps.ver.outputs.tag }}-linux-x86_64.tar.gz"
+          for i in 1 2 3 4 5 6; do
+            if curl -sfLI "$URL" >/dev/null; then
+              echo "asset ready: $URL"; exit 0
+            fi
+            echo "asset not ready yet (try $i), sleeping 10s..."
+            sleep 10
+          done
+          echo "::error::release asset never became downloadable: $URL"; exit 1
+
+      # 把模板 PKGBUILD 里占位的 pkgver=0.0.0 + url 中的 v0.0.0 替换成真实 tag
+      # (action 自身只负责 updpkgsums + .SRCINFO + push,不处理版本注入)
+      - name: Inject pkgver into PKGBUILD
+        run: |
+          PV="${{ steps.ver.outputs.pkgver }}"
+          sed -i "s/^pkgver=.*/pkgver=${PV}/" aur/luvtter-desktop-bin/PKGBUILD
+          echo "--- PKGBUILD after sed ---"
+          cat aur/luvtter-desktop-bin/PKGBUILD
+
+      - name: Publish to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
+        with:
+          pkgname: luvtter-desktop-bin
+          pkgbuild: aur/luvtter-desktop-bin/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME || 'Emiya173' }}
+          commit_email: ${{ secrets.AUR_EMAIL || 'emiyazero173@gmail.com' }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Release ${{ steps.ver.outputs.tag }}"
+          updpkgsums: true
+          force_push: false
