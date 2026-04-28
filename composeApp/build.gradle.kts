@@ -81,6 +81,10 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "letter-app"
             packageVersion = "1.0.0"
+            // jpackage 用 jlink 裁剪运行时,只保留代码里直接 import 的模块。
+            // Ktor Java engine 反射调用 java.net.http,jlink 检测不到 → 必须显式声明。
+            // jdk.crypto.ec 是 TLS 椭圆曲线握手依赖(连 HTTPS 服务端时不加会偶发 SSL 错)。
+            modules("java.net.http", "jdk.crypto.ec")
         }
     }
 }
