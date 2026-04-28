@@ -125,6 +125,12 @@ jobs:
       - name: Build ${{ matrix.format }} package
         run: ./gradlew :composeApp:${{ matrix.task }} --no-daemon --stacktrace
         shell: bash
+      # packageDeb / packageDmg / packageMsi 不触发 createDistributable,
+      # 仅 Linux 需要这份 self-contained 目录用来打 tar.gz 给 AUR。
+      - name: Build createDistributable (Linux only, for AUR tarball)
+        if: matrix.os == 'ubuntu-latest'
+        run: ./gradlew :composeApp:createDistributable --no-daemon --stacktrace
+        shell: bash
       - name: Stage artifact
         shell: bash
         run: |
