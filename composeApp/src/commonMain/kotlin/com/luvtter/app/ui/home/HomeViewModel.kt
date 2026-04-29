@@ -8,6 +8,7 @@ import com.luvtter.contract.dto.FinalizeHandleRequest
 import com.luvtter.contract.dto.LetterSummaryDto
 import com.luvtter.contract.dto.UpdateOnboardingStateRequest
 import com.luvtter.contract.dto.UserDto
+import com.luvtter.app.platform.setAppBadgeCount
 import com.luvtter.shared.auth.TokenStore
 import com.luvtter.shared.network.AddressApi
 import com.luvtter.shared.network.DailyRewardApi
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.delay
@@ -64,6 +67,9 @@ class HomeViewModel(
                         )
                     }
                 }
+        }
+        viewModelScope.launch {
+            _state.map { it.unread }.distinctUntilChanged().collect { setAppBadgeCount(it) }
         }
     }
 
