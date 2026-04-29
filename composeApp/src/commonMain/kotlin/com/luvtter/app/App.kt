@@ -1,8 +1,8 @@
 package com.luvtter.app
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
+import com.luvtter.app.theme.LuvtterTheme
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
@@ -44,7 +44,7 @@ fun App() {
                 .components { add(KtorNetworkFetcherFactory(httpClient = createRawHttpClient())) }
                 .build()
         }
-        MaterialTheme {
+        LuvtterTheme {
             val nav = rememberNavController()
             val tokens: TokenStore = koinInject()
 
