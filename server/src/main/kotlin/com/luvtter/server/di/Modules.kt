@@ -29,7 +29,10 @@ fun configModule(config: ApplicationConfig) = module {
     single<StorageConfig> { config.storageConfig() }
     single<TasksConfig> {
         val poll = config.propertyOrNull("tasks.pollMillis")?.getString()?.toLongOrNull() ?: 2_000L
-        TasksConfig(pollMillis = poll)
+        // useStubOcr=true(默认): Kotlin runner 处理 ocr_index,写占位文本(测试 + 单机开发用)
+        // useStubOcr=false: 让出给 Python image-worker,Kotlin runner 不再认领 ocr_index 任务
+        val stub = config.propertyOrNull("tasks.useStubOcr")?.getString()?.toBoolean() ?: true
+        TasksConfig(pollMillis = poll, useStubOcr = stub)
     }
 }
 
@@ -65,12 +68,13 @@ val tasksModule = module {
     singleOf(::OcrIndexService)
     singleOf(::OcrTaskQuery)
     single {
-        val poll = get<TasksConfig>().pollMillis
-        AsyncTaskRunner(get(), poll)
+        val cfg = get<TasksConfig>()
+        val handled = if (cfg.useStubOcr) setOf("ocr_index") else emptySet()
+        AsyncTaskRunner(get(), cfg.pollMillis, handled)
     }
 }
 
-data class TasksConfig(val pollMillis: Long)
+data class TasksConfig(val pollMillis: Long, val useStubOcr: Boolean = true)
 
 fun appModules(config: ApplicationConfig) = listOf(
     configModule(config),

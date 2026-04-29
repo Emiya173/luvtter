@@ -34,6 +34,31 @@ services:
       timeout: 5s
       retries: 5
 
+  # Stage 4 image-worker:消费 ocr_index 任务,把扫描信识别后的文本写回 letter_contents.index_text
+  # 启用前提:服务端的 application.yaml 必须设 USE_STUB_OCR=false(否则 Kotlin runner 会先抢任务、
+  # 写占位文本,Python worker 没机会跑)。
+  image-worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: letter-image-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://letter:letter@postgres:5432/letter"
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_BUCKET: "letter"
+      MINIO_USE_SSL: "false"
+      POLL_SECONDS: "2"
+      OCR_LANG: "chi_sim+eng"
+      LOG_LEVEL: "INFO"
+    restart: unless-stopped
+
   # 生产/完整联调启用,开发阶段在 IDE 里直接跑服务端
   # ktor-server:
   #   build:

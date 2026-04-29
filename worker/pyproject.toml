@@ -1,0 +1,17 @@
+[project]
+name = "luvtter-image-worker"
+version = "0.1.0"
+description = "Luvtter OCR/image worker — consumes async_tasks(ocr_index) and writes letter_contents.index_text"
+requires-python = ">=3.12,<3.13"
+
+dependencies = [
+    "psycopg[binary]==3.2.3",
+    "minio==7.2.10",
+    "pillow==11.0.0",
+    "pytesseract==0.3.13",
+    "pypdfium2==4.30.0",
+]
+
+# 这是一个独立的应用,不需要被打成 wheel/编译。告诉 uv 别尝试 build,只管 venv 和依赖。
+[tool.uv]
+package = false

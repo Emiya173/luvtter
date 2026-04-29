@@ -35,14 +35,24 @@ private val log = KotlinLogging.logger {}
 class AsyncTaskRunner(
     private val ocrIndexService: OcrIndexService,
     private val pollMillis: Long = 2_000L,
+    /**
+     * 此 runner 实例可以认领的 task_type 集合。空集合 = 关闭(用于把 ocr_index 让给外部 Python worker)。
+     * 留空时 runner 仍然启动并定时心跳,只是 SQL 走一个总是 false 的分支立刻返回 null,
+     * 保证 monitor / health 行为不变。
+     */
+    private val handledTaskTypes: Set<String> = setOf("ocr_index"),
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
 
     fun start() {
         if (job?.isActive == true) return
+        if (handledTaskTypes.isEmpty()) {
+            log.info { "tasks.runner started pollMillis=$pollMillis (idle: no handled task types)" }
+        } else {
+            log.info { "tasks.runner started pollMillis=$pollMillis handled=$handledTaskTypes" }
+        }
         job = scope.launch {
-            log.info { "tasks.runner started pollMillis=$pollMillis" }
             while (isActive) {
                 val processed = runCatching { tickOnce() }.getOrElse { e ->
                     log.error(e) { "tasks.runner tick failed" }
@@ -60,6 +70,7 @@ class AsyncTaskRunner(
 
     /** 拿一条 pending 任务并执行。返回 true 表示有处理过任务,可以立刻继续;false 则空轮询。 */
     private fun tickOnce(): Boolean {
+        if (handledTaskTypes.isEmpty()) return false
         val claimed = transaction { claimNext() } ?: return false
         val (taskId, taskType, payload, attempts, maxAttempts) = claimed
         val result = runCatching {
@@ -106,11 +117,13 @@ class AsyncTaskRunner(
     )
 
     /**
-     * 用 PG 的 `FOR UPDATE SKIP LOCKED` 单语句原子认领,允许多实例并发(未来可能上 K8s 多副本)。
+     * 用 PG 的 `FOR UPDATE SKIP LOCKED` 单语句原子认领,允许多实例并发(K8s 多副本 + Python worker 共存)。
+     * task_type 过滤把"我能处理的类型"嵌进 SQL,与 Python worker 自然分流。
      */
     private fun claimNext(): ClaimedTask? {
         var result: ClaimedTask? = null
-        // 显式指定 StatementType.SELECT,让 Exposed 走 executeQuery() 以读取 RETURNING 结果集
+        // task_type IN (...) 直接拼字符串,值是代码内白名单(不是用户输入),无 SQL 注入风险
+        val typesList = handledTaskTypes.joinToString(",") { "'${it.replace("'", "''")}'" }
         org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager.current().exec(
             """
             UPDATE async_tasks SET
@@ -120,7 +133,9 @@ class AsyncTaskRunner(
                 updated_at = now()
             WHERE id = (
                 SELECT id FROM async_tasks
-                WHERE status = 'pending' AND scheduled_at <= now()
+                WHERE status = 'pending'
+                  AND scheduled_at <= now()
+                  AND task_type IN ($typesList)
                 ORDER BY scheduled_at, id
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1

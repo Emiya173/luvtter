@@ -22,6 +22,12 @@ storage:
 notifications:
   heartbeatSeconds: "${SSE_HEARTBEAT_SECONDS:25}"
 
+tasks:
+  pollMillis: "${TASKS_POLL_MILLIS:2000}"
+  # 默认 true: Kotlin AsyncTaskRunner 处理 ocr_index(写占位文本,搜索可用)
+  # 部署 image-worker 时设为 false,把 ocr_index 让给 Python worker
+  useStubOcr: "${USE_STUB_OCR:true}"
+
 jwt:
   secret: "${JWT_SECRET:dev-secret-change-me}"
   issuer: "letter-app"
