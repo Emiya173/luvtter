@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.luvtter.app.ui.common.formatLocalDateTime
+import com.luvtter.app.ui.letter.InboxStack
 import com.luvtter.contract.dto.AddressDto
 import com.luvtter.contract.dto.FolderDto
 import com.luvtter.contract.dto.LetterSummaryDto
@@ -298,6 +299,13 @@ private fun HomeContent(
                     }
                     Text(hint, style = MaterialTheme.typography.bodyMedium)
                 }
+            } else if (state.tab == HomeTab.Inbox && !state.showHidden) {
+                InboxStack(
+                    letters = state.letters,
+                    isLetterMine = isLetterMine,
+                    onOpen = onOpenLetter,
+                    modifier = Modifier.fillMaxSize(),
+                )
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(state.letters, key = { it.id }) { l ->

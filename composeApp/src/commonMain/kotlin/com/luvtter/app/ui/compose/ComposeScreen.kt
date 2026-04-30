@@ -1,19 +1,37 @@
 package com.luvtter.app.ui.compose
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
@@ -21,10 +39,19 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import com.luvtter.app.ui.common.FlowChips
+import com.luvtter.app.theme.LuvtterTheme
 import com.luvtter.app.ui.common.formatLocalDateTime
+import com.luvtter.app.ui.letter.Postmark
+import com.luvtter.app.ui.letter.Stamp
+import com.luvtter.app.ui.letter.StampSpec
+import com.luvtter.app.ui.letter.Stamps
+import com.luvtter.app.ui.letter.Stationery
+import com.luvtter.app.ui.letter.StationeryRule
+import com.luvtter.app.ui.letter.StationerySpec
+import com.luvtter.contract.dto.StationeryDto
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -70,7 +97,6 @@ fun ComposeScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ComposeContent(
     state: ComposeUiState,
@@ -104,232 +130,904 @@ private fun ComposeContent(
     onClearScan: () -> Unit,
     onToggleStrikeOnDelete: () -> Unit,
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (isReply) "回信" else "写一封信") },
-                navigationIcon = { TextButton(onClick = onCancel) { Text("取消") } }
-            )
-        }
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
-            if (state.contacts.isNotEmpty()) {
-                Text("从联系人选择", style = MaterialTheme.typography.labelMedium)
-                Spacer(Modifier.height(4.dp))
-                FlowChips(
-                    items = state.contacts.map {
-                        Triple(it.target.handle, "${it.target.displayName} · @${it.target.handle}", state.recipientHandle == it.target.handle)
-                    },
-                    onSelect = onPickContact
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = state.recipientHandle, onValueChange = onRecipientHandleChange,
-                    label = { Text("收件人 handle") }, singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(8.dp))
-                Button(enabled = !state.lookupBusy && state.recipientHandle.isNotBlank(), onClick = onLookup) {
-                    Text(if (state.lookupBusy) "查找中" else "查找")
-                }
-            }
-            state.recipientName?.let {
-                Text("→ $it", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
-            }
-            if (state.recipientAddresses.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                Text("寄到对方哪个地址", style = MaterialTheme.typography.labelMedium)
-                FlowChips(
-                    items = state.recipientAddresses.map { Triple(it.id, "${it.label} · ${it.type}" + if (it.isDefault) " · 默认" else "", state.recipientAddressId == it.id) },
-                    onSelect = onRecipientAddressSelect
-                )
-            }
+    val tokens = LuvtterTheme.tokens
+    val activeStationery = Stationery.byId(stationeryCodeOf(state.stationeries, state.stationeryId) ?: "cream")
+    val activeStampSpec = Stamps.byId(stampCodeOf(state.stamps, state.stampId) ?: "airmail")
 
-            Spacer(Modifier.height(12.dp))
-            Text("信件内容", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            FlowChips(
-                items = listOf(
-                    Triple("text", "键入文本", state.mode == "text"),
-                    Triple("scan", "扫描信", state.mode == "scan"),
-                ),
-                onSelect = onModeSelect
-            )
-            Spacer(Modifier.height(6.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(tokens.colors.paperDeep),
+    ) {
+        ComposeTopBar(isReply = isReply, onCancel = onCancel)
 
-            if (state.mode == "scan") {
-                ScanEditorSection(
+        Row(modifier = Modifier.fillMaxSize().weight(1f)) {
+            // ── Paper area ────────────────────────────────────────────────
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                PaperCard(
+                    stationery = activeStationery,
                     state = state,
+                    onRecipientHandleChange = onRecipientHandleChange,
+                    onLookup = onLookup,
+                    onRecipientAddressSelect = onRecipientAddressSelect,
+                    onPickContact = onPickContact,
+                    onEditorChange = onEditorChange,
+                    onStrikeSelection = onStrikeSelection,
+                    onUnstrikeSelection = onUnstrikeSelection,
+                    onModeSelect = onModeSelect,
                     onPickScan = onPickScan,
-                    onClearScan = onClearScan
+                    onClearScan = onClearScan,
+                    onToggleStrikeOnDelete = onToggleStrikeOnDelete,
                 )
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(checked = state.strikeOnDelete, onCheckedChange = { onToggleStrikeOnDelete() })
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (state.strikeOnDelete)
-                            "涂改模式开:停顿 ${state.strikeOnDeleteWindowMs / 1000} 秒后再 backspace,删字保留为划线"
-                        else "涂改模式关",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                    val hasSelection = !state.editorSelection.collapsed
-                    TextButton(enabled = hasSelection, onClick = onStrikeSelection) { Text("划掉所选") }
-                    TextButton(enabled = hasSelection, onClick = onUnstrikeSelection) { Text("撤销划线") }
-                }
-                Spacer(Modifier.height(6.dp))
-                LetterBodyEditor(
-                    text = state.editorText,
-                    selection = state.editorSelection,
-                    struckMask = state.struckMask,
-                    onChange = onEditorChange,
-                )
-            }
-            Spacer(Modifier.height(16.dp))
 
-            Text("邮票", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            FlowChips(
-                items = state.stamps.map { stamp ->
-                    val qty = state.assets?.stamps?.firstOrNull { it.assetId == stamp.id }?.quantity ?: 0
-                    Triple(stamp.id, "${stamp.name}×$qty (${stamp.weightCapacity}g)", state.stampId == stamp.id)
-                },
-                onSelect = onStampSelect
-            )
-
-            if (state.stationeries.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
-                Text("信纸", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
-                FlowChips(
-                    items = listOf(Triple("", "无", state.stationeryId == null)) +
-                        state.stationeries.map { Triple(it.id, it.name, state.stationeryId == it.id) },
-                    onSelect = { onStationerySelect(it.ifBlank { null }) }
-                )
-            }
 
-            Spacer(Modifier.height(16.dp))
-            Text("字体", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            FlowChips(
-                items = FONT_OPTIONS.map { (code, label) ->
-                    Triple(code.orEmpty(), label, state.fontCode == code)
-                },
-                onSelect = { onFontSelect(it.ifBlank { null }) }
-            )
-
-            Spacer(Modifier.height(16.dp))
-            Text("寄件地址", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            if (state.senderAddresses.isEmpty()) {
-                Text("尚未创建地址，请先到「址」管理。", style = MaterialTheme.typography.bodySmall)
-            } else {
-                FlowChips(
-                    items = state.senderAddresses.map { Triple(it.id, "${it.label} · ${it.type}", state.senderAddressId == it.id) },
-                    onSelect = onSenderAddressSelect
+                AttachmentsBlock(
+                    state = state,
+                    onShowStickerDialog = onShowStickerDialog,
+                    onPickPhoto = onPickPhoto,
+                    onRemoveAttachment = onRemoveAttachment,
                 )
-            }
 
-            Spacer(Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("附件", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                val capacity = state.stampCapacity
-                val weightText = if (capacity != null) "${state.totalWeight}/${capacity}g" else "${state.totalWeight}g"
-                val overWeight = capacity != null && state.totalWeight > capacity
-                Text(
-                    weightText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (overWeight) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(Modifier.height(4.dp))
-            if (state.attachments.isEmpty()) {
-                Text("尚未添加附件", style = MaterialTheme.typography.bodySmall)
-            } else {
-                state.attachments.forEach { att ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val label = when (att.attachmentType) {
-                            "sticker" -> state.stickers.firstOrNull { it.id == att.stickerId }?.name
-                                ?: "贴纸"
-                            "photo" -> {
-                                val key = att.objectKey?.substringAfterLast('/')
-                                "图片 · ${key ?: att.mediaUrl ?: "?"}"
-                            }
-                            else -> att.attachmentType
-                        }
-                        Text("· $label · ${att.weight}g", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                        TextButton(
-                            enabled = !state.attachmentBusy,
-                            onClick = { onRemoveAttachment(att.id) }
-                        ) { Text("移除") }
-                    }
+                state.sealedUntil?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "封存中：${formatLocalDateTime(it) ?: it}（期间不可编辑/寄出）",
+                        style = tokens.typography.meta.copy(fontSize = 11.sp, color = tokens.colors.seal),
+                    )
+                }
+                state.status?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, style = tokens.typography.body.copy(fontSize = 13.sp, color = tokens.colors.seal))
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            Row {
-                OutlinedButton(
-                    enabled = !state.attachmentBusy && state.stickers.isNotEmpty(),
-                    onClick = onShowStickerDialog
-                ) { Text("添加贴纸") }
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(
-                    enabled = !state.attachmentBusy,
-                    onClick = onPickPhoto
-                ) { Text(if (state.attachmentBusy) "处理中..." else "选图并上传") }
-            }
 
-            state.sealedUntil?.let {
-                Spacer(Modifier.height(8.dp))
-                Text("封存中：${formatLocalDateTime(it) ?: it}（期间不可编辑/寄出）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-            }
-
-            state.status?.let {
-                Spacer(Modifier.height(12.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-
-            Spacer(Modifier.height(20.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    enabled = state.canSaveDraft,
-                    onClick = onSaveDraft,
-                    modifier = Modifier.weight(1f)
-                ) { Text("保存草稿") }
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(
-                    enabled = state.canSaveDraft,
-                    onClick = onShowSealDialog,
-                    modifier = Modifier.weight(1f)
-                ) { Text("封存草稿") }
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    enabled = state.canSend,
-                    onClick = onSend,
-                    modifier = Modifier.weight(1f)
-                ) { Text(if (state.loading) "处理中..." else "寄出") }
-            }
+            // ── Sidebar ───────────────────────────────────────────────────
+            Sidebar(
+                state = state,
+                activeStampSpec = activeStampSpec,
+                onStationerySelect = onStationerySelect,
+                onFontSelect = onFontSelect,
+                onStampSelect = onStampSelect,
+                onSenderAddressSelect = onSenderAddressSelect,
+                onSaveDraft = onSaveDraft,
+                onSend = onSend,
+                onShowSealDialog = onShowSealDialog,
+            )
         }
     }
 
     if (showSealDialog) {
-        SealDraftDialog(
-            onDismiss = onDismissSealDialog,
-            onConfirm = onSeal
-        )
+        SealDraftDialog(onDismiss = onDismissSealDialog, onConfirm = onSeal)
     }
     if (showStickerDialog) {
         StickerPickerDialog(
             stickers = state.stickers,
             onDismiss = onDismissStickerDialog,
-            onPick = onPickSticker
+            onPick = onPickSticker,
         )
+    }
+}
+
+@Composable
+private fun ComposeTopBar(isReply: Boolean, onCancel: () -> Unit) {
+    val tokens = LuvtterTheme.tokens
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(tokens.colors.paper)
+            .drawBehind {
+                drawRect(
+                    color = tokens.colors.ruleSoft,
+                    topLeft = Offset(0f, size.height - 0.5f),
+                    size = Size(size.width, 0.5f),
+                )
+            }
+            .padding(horizontal = 32.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onCancel) {
+            Text("取消", style = tokens.typography.meta.copy(fontSize = 12.sp, color = tokens.colors.inkSoft))
+        }
+        Spacer(Modifier.width(20.dp))
+        Text(
+            if (isReply) "回信" else "写信",
+            style = tokens.typography.title.copy(fontSize = 24.sp, letterSpacing = 1.92.sp),
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            "把心事交给笔尖",
+            style = tokens.typography.caption.copy(color = tokens.colors.inkFaded),
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            "一经寄出 · 不可撤回",
+            style = tokens.typography.meta.copy(color = tokens.colors.inkGhost),
+        )
+    }
+}
+
+@Composable
+private fun PaperCard(
+    stationery: StationerySpec,
+    state: ComposeUiState,
+    onRecipientHandleChange: (String) -> Unit,
+    onLookup: () -> Unit,
+    onRecipientAddressSelect: (String) -> Unit,
+    onPickContact: (String) -> Unit,
+    onEditorChange: (TextFieldValue) -> Unit,
+    onStrikeSelection: () -> Unit,
+    onUnstrikeSelection: () -> Unit,
+    onModeSelect: (String) -> Unit,
+    onPickScan: () -> Unit,
+    onClearScan: () -> Unit,
+    onToggleStrikeOnDelete: () -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    Column(
+        modifier = Modifier
+            .widthIn(max = 620.dp)
+            .fillMaxWidth()
+            .shadow(20.dp, RectangleShape, ambientColor = Color(0xFF1E140A).copy(alpha = 0.16f))
+            .background(stationery.tint)
+            .stationeryRulesCompose(stationery.rule, tokens.colors.inkFaded)
+            .padding(horizontal = 48.dp, vertical = 48.dp),
+    ) {
+        ToFromHeader(
+            state = state,
+            onRecipientHandleChange = onRecipientHandleChange,
+            onLookup = onLookup,
+            onRecipientAddressSelect = onRecipientAddressSelect,
+            onPickContact = onPickContact,
+        )
+
+        Spacer(Modifier.height(28.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("内容", style = tokens.typography.meta.copy(color = tokens.colors.inkFaded))
+            Spacer(Modifier.width(12.dp))
+            ModeChip(label = "键入", selected = state.mode == "text") { onModeSelect("text") }
+            Spacer(Modifier.width(6.dp))
+            ModeChip(label = "扫描", selected = state.mode == "scan") { onModeSelect("scan") }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        if (state.mode == "scan") {
+            ScanEditorSection(state = state, onPickScan = onPickScan, onClearScan = onClearScan)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(
+                    checked = state.strikeOnDelete,
+                    onCheckedChange = { onToggleStrikeOnDelete() },
+                    modifier = Modifier.scale(0.75f),
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    if (state.strikeOnDelete) "涂改模式 · ${state.strikeOnDeleteWindowMs / 1000}s 外删字保留划痕" else "涂改模式关",
+                    style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
+                    modifier = Modifier.weight(1f),
+                )
+                val hasSelection = !state.editorSelection.collapsed
+                if (hasSelection) {
+                    TextButton(onClick = onStrikeSelection, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                        Text("划掉", style = tokens.typography.meta.copy(fontSize = 11.sp))
+                    }
+                    TextButton(onClick = onUnstrikeSelection, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                        Text("撤销划线", style = tokens.typography.meta.copy(fontSize = 11.sp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            LetterBodyEditor(
+                text = state.editorText,
+                selection = state.editorSelection,
+                struckMask = state.struckMask,
+                fontCode = state.fontCode,
+                onChange = onEditorChange,
+            )
+        }
+
+        Spacer(Modifier.height(32.dp))
+        Text(
+            "——— ${state.recipientName ?: ""}".let { if (it.endsWith(" ")) "———" else it },
+            style = tokens.typography.caption.copy(
+                fontStyle = FontStyle.Italic,
+                color = tokens.colors.inkFaded,
+                fontSize = 14.sp,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun ToFromHeader(
+    state: ComposeUiState,
+    onRecipientHandleChange: (String) -> Unit,
+    onLookup: () -> Unit,
+    onRecipientAddressSelect: (String) -> Unit,
+    onPickContact: (String) -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("致 · TO", style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded))
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BasicTransparentField(
+                    value = state.recipientHandle,
+                    onValueChange = onRecipientHandleChange,
+                    placeholder = "@handle",
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    enabled = !state.lookupBusy && state.recipientHandle.isNotBlank(),
+                    onClick = onLookup,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                ) {
+                    Text(
+                        if (state.lookupBusy) "查找中…" else "查找",
+                        style = tokens.typography.meta.copy(fontSize = 11.sp, color = tokens.colors.seal),
+                    )
+                }
+            }
+            state.recipientName?.let {
+                Text(
+                    "→ $it",
+                    style = tokens.typography.caption.copy(fontSize = 12.sp, color = tokens.colors.inkSoft),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            val senderLabel = state.senderAddresses.firstOrNull { it.id == state.senderAddressId }?.label ?: "上海"
+            Text(
+                "自 · $senderLabel · 今日",
+                style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
+            )
+            if (state.contacts.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    state.contacts.take(6).forEach { c ->
+                        val sel = state.recipientHandle == c.target.handle
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(2.dp))
+                                .border(
+                                    width = 0.5.dp,
+                                    color = if (sel) tokens.colors.ink else tokens.colors.paperEdge,
+                                    shape = RoundedCornerShape(2.dp),
+                                )
+                                .clickable { onPickContact(c.target.handle) }
+                                .padding(horizontal = 6.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                "@${c.target.handle}",
+                                style = tokens.typography.meta.copy(
+                                    fontSize = 9.sp,
+                                    color = if (sel) tokens.colors.ink else tokens.colors.inkFaded,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+            if (state.recipientAddresses.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "寄到对方哪个地址",
+                    style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
+                )
+                Spacer(Modifier.height(4.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    state.recipientAddresses.forEach { a ->
+                        val sel = state.recipientAddressId == a.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onRecipientAddressSelect(a.id) }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                if (sel) "● " else "○ ",
+                                style = tokens.typography.meta.copy(fontSize = 10.sp, color = if (sel) tokens.colors.seal else tokens.colors.inkGhost),
+                            )
+                            Text(
+                                "${a.label} · ${a.type}" + if (a.isDefault) " · 默认" else "",
+                                style = tokens.typography.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Postmark(
+            city = state.recipientName?.take(2) ?: "上海",
+            date = "今日",
+            size = 66.dp,
+            rotateDeg = 3f,
+            ink = LuvtterTheme.colors.stampInk.copy(alpha = 0.55f),
+        )
+    }
+
+    Spacer(Modifier.height(20.dp))
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(0.5.dp)
+            .background(LuvtterTheme.colors.rule.copy(alpha = 0.45f)),
+    )
+}
+
+@Composable
+private fun BasicTransparentField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+) {
+    val tokens = LuvtterTheme.tokens
+    androidx.compose.foundation.text.BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        textStyle = TextStyle(
+            fontFamily = tokens.fonts.serifZh,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = tokens.colors.ink,
+            letterSpacing = 0.72.sp,
+        ),
+        cursorBrush = SolidColor(tokens.colors.seal),
+        singleLine = true,
+        modifier = modifier.padding(vertical = 4.dp),
+        decorationBox = { inner ->
+            if (value.isEmpty()) {
+                Text(
+                    placeholder,
+                    style = TextStyle(
+                        fontFamily = tokens.fonts.serifZh,
+                        fontSize = 18.sp,
+                        color = tokens.colors.inkGhost,
+                    ),
+                )
+            }
+            inner()
+        },
+    )
+}
+
+@Composable
+private fun ModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val tokens = LuvtterTheme.tokens
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(2.dp))
+            .border(
+                width = 0.5.dp,
+                color = if (selected) tokens.colors.ink else tokens.colors.paperEdge,
+                shape = RoundedCornerShape(2.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Text(
+            label,
+            style = tokens.typography.meta.copy(
+                fontSize = 10.sp,
+                color = if (selected) tokens.colors.ink else tokens.colors.inkFaded,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun Sidebar(
+    state: ComposeUiState,
+    activeStampSpec: StampSpec,
+    onStationerySelect: (String?) -> Unit,
+    onFontSelect: (String?) -> Unit,
+    onStampSelect: (String) -> Unit,
+    onSenderAddressSelect: (String) -> Unit,
+    onSaveDraft: () -> Unit,
+    onSend: () -> Unit,
+    onShowSealDialog: () -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    Column(
+        modifier = Modifier
+            .width(240.dp)
+            .fillMaxHeight()
+            .background(tokens.colors.paper)
+            .padding(horizontal = 16.dp, vertical = 18.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        if (state.stationeries.isNotEmpty()) {
+            ToolSection("信纸") {
+                StationeryGrid(
+                    items = state.stationeries,
+                    selectedId = state.stationeryId,
+                    onSelect = onStationerySelect,
+                )
+            }
+        }
+
+        ToolSection("字体") {
+            FontList(selectedCode = state.fontCode, onSelect = onFontSelect)
+        }
+
+        if (state.stamps.isNotEmpty()) {
+            ToolSection("邮票") {
+                StampPickerRow(
+                    state = state,
+                    onSelect = onStampSelect,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "${activeStampSpec.name} · ${activeStampSpec.days}",
+                    style = tokens.typography.caption.copy(
+                        fontSize = 12.sp,
+                        color = tokens.colors.inkFaded,
+                        fontStyle = FontStyle.Italic,
+                    ),
+                )
+            }
+        }
+
+        ToolSection("重量") {
+            WeightBar(
+                weight = state.totalWeight,
+                capacity = state.stampCapacity,
+            )
+        }
+
+        if (state.senderAddresses.isNotEmpty()) {
+            ToolSection("寄件地址") {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    state.senderAddresses.forEach { a ->
+                        val sel = state.senderAddressId == a.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSenderAddressSelect(a.id) }
+                                .padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                if (sel) "●" else "○",
+                                style = tokens.typography.meta.copy(
+                                    fontSize = 10.sp,
+                                    color = if (sel) tokens.colors.seal else tokens.colors.inkGhost,
+                                ),
+                                modifier = Modifier.width(16.dp),
+                            )
+                            Text(
+                                "${a.label} · ${a.type}",
+                                style = tokens.typography.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.weight(1f, fill = false))
+        Spacer(Modifier.height(4.dp))
+
+        SealButton(
+            enabled = state.canSend,
+            label = if (state.loading) "处理中…" else "封缄 · 寄出",
+            onClick = onSend,
+        )
+        TextButton(
+            enabled = state.canSaveDraft,
+            onClick = onSaveDraft,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("存为草稿", style = tokens.typography.meta.copy(fontSize = 12.sp, color = tokens.colors.inkSoft))
+        }
+        TextButton(
+            enabled = state.canSaveDraft,
+            onClick = onShowSealDialog,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("封存草稿", style = tokens.typography.meta.copy(fontSize = 12.sp, color = tokens.colors.inkSoft))
+        }
+    }
+}
+
+@Composable
+private fun ToolSection(label: String, content: @Composable () -> Unit) {
+    val tokens = LuvtterTheme.tokens
+    Column {
+        Text(
+            label,
+            style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        content()
+    }
+}
+
+@Composable
+private fun StationeryGrid(
+    items: List<StationeryDto>,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { item ->
+                    val sel = selectedId == item.id
+                    val spec = Stationery.byId(item.code)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(54.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(spec.tint)
+                            .stationeryRulesCompose(spec.rule, tokens.colors.inkFaded)
+                            .border(
+                                width = if (sel) 0.8.dp else 0.5.dp,
+                                color = if (sel) tokens.colors.ink else tokens.colors.paperEdge,
+                                shape = RoundedCornerShape(2.dp),
+                            )
+                            .clickable { onSelect(if (sel) null else item.id) }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.BottomCenter,
+                    ) {
+                        Text(
+                            item.name,
+                            style = tokens.typography.body.copy(
+                                fontSize = 11.sp,
+                                color = tokens.colors.inkSoft,
+                                letterSpacing = 0.44.sp,
+                            ),
+                        )
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FontList(
+    selectedCode: String?,
+    onSelect: (String?) -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    Column {
+        FONT_OPTIONS.forEach { (code, label) ->
+            val sel = selectedCode == code
+            val accent = if (sel) tokens.colors.seal else Color.Transparent
+            val bg = if (sel) tokens.colors.sealGlow.copy(alpha = 0.06f) else Color.Transparent
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(bg)
+                    .drawBehind {
+                        drawRect(
+                            color = accent,
+                            topLeft = Offset(0f, 0f),
+                            size = Size(1.5f, size.height),
+                        )
+                    }
+                    .clickable { onSelect(code) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    label,
+                    style = tokens.typography.meta.copy(
+                        fontSize = 10.sp,
+                        color = tokens.colors.inkFaded,
+                    ),
+                    modifier = Modifier.width(40.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "永字八法",
+                    style = TextStyle(
+                        fontFamily = fontFamilyFor(code, tokens.fonts.serifZh, tokens.fonts.handZh, tokens.fonts.handLoose),
+                        fontSize = 14.sp,
+                        color = if (sel) tokens.colors.ink else tokens.colors.inkSoft,
+                        letterSpacing = 0.28.sp,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StampPickerRow(
+    state: ComposeUiState,
+    onSelect: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        state.stamps.forEach { stamp ->
+            val sel = state.stampId == stamp.id
+            val spec = Stamps.byId(stamp.code)
+            val qty = state.assets?.stamps?.firstOrNull { it.assetId == stamp.id }?.quantity ?: 0
+            Column(
+                modifier = Modifier
+                    .clickable { onSelect(stamp.id) }
+                    .padding(2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .alpha(if (sel) 1f else 0.42f),
+                ) {
+                    Stamp(spec = spec, size = 36.dp)
+                }
+                Text(
+                    "×$qty",
+                    style = LuvtterTheme.tokens.typography.meta.copy(
+                        fontSize = 9.sp,
+                        color = if (sel) LuvtterTheme.colors.ink else LuvtterTheme.colors.inkGhost,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeightBar(weight: Int, capacity: Int?) {
+    val tokens = LuvtterTheme.tokens
+    val pct = if (capacity != null && capacity > 0) (weight.toFloat() / capacity).coerceIn(0f, 1f) else 0f
+    val over = capacity != null && weight > capacity
+    val activeColor = if (over || pct > 0.9f) tokens.colors.seal else tokens.colors.ink
+
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(tokens.colors.paperEdge),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(pct)
+                    .height(2.dp)
+                    .background(activeColor),
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "$weight / ${capacity ?: "—"}",
+                style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (over) "超重" else "可承载",
+                style = tokens.typography.caption.copy(
+                    fontSize = 11.sp,
+                    color = if (over) tokens.colors.seal else tokens.colors.inkFaded,
+                    fontStyle = FontStyle.Italic,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SealButton(enabled: Boolean, label: String, onClick: () -> Unit) {
+    val tokens = LuvtterTheme.tokens
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = tokens.colors.seal,
+            contentColor = tokens.colors.paperRaised,
+            disabledContainerColor = tokens.colors.seal.copy(alpha = 0.4f),
+            disabledContentColor = tokens.colors.paperRaised.copy(alpha = 0.7f),
+        ),
+        shape = RoundedCornerShape(2.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+    ) {
+        Text(
+            label,
+            maxLines = 1,
+            style = TextStyle(
+                fontFamily = tokens.fonts.serifZh,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.6.sp,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun AttachmentsBlock(
+    state: ComposeUiState,
+    onShowStickerDialog: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onRemoveAttachment: (String) -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    Column(
+        modifier = Modifier
+            .widthIn(max = 620.dp)
+            .fillMaxWidth(),
+    ) {
+        Text("附件", style = tokens.typography.meta.copy(color = tokens.colors.inkFaded))
+        Spacer(Modifier.height(6.dp))
+        if (state.attachments.isEmpty()) {
+            Text("尚未添加附件", style = tokens.typography.caption.copy(fontSize = 12.sp, color = tokens.colors.inkGhost))
+        } else {
+            state.attachments.forEach { att ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val label = when (att.attachmentType) {
+                        "sticker" -> state.stickers.firstOrNull { it.id == att.stickerId }?.name ?: "贴纸"
+                        "photo" -> "图片 · ${att.objectKey?.substringAfterLast('/') ?: att.mediaUrl ?: "?"}"
+                        else -> att.attachmentType
+                    }
+                    Text(
+                        "· $label · ${att.weight}g",
+                        style = tokens.typography.body.copy(fontSize = 13.sp, lineHeight = 18.sp),
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        enabled = !state.attachmentBusy,
+                        onClick = { onRemoveAttachment(att.id) },
+                        contentPadding = PaddingValues(horizontal = 6.dp),
+                    ) {
+                        Text("移除", style = tokens.typography.meta.copy(fontSize = 11.sp))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                enabled = !state.attachmentBusy && state.stickers.isNotEmpty(),
+                onClick = onShowStickerDialog,
+                shape = RoundedCornerShape(2.dp),
+            ) {
+                Text("添加贴纸", style = tokens.typography.meta.copy(fontSize = 11.sp))
+            }
+            OutlinedButton(
+                enabled = !state.attachmentBusy,
+                onClick = onPickPhoto,
+                shape = RoundedCornerShape(2.dp),
+            ) {
+                Text(
+                    if (state.attachmentBusy) "处理中…" else "选图并上传",
+                    style = tokens.typography.meta.copy(fontSize = 11.sp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LetterBodyEditor(
+    text: String,
+    selection: TextRange,
+    struckMask: List<Boolean>,
+    fontCode: String?,
+    onChange: (TextFieldValue) -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    val struckColor = tokens.colors.inkFaded
+    val transformation = remember(struckMask, struckColor) {
+        strikeMaskTransformation(struckMask, struckColor)
+    }
+    val family = fontFamilyFor(fontCode, tokens.fonts.serifZh, tokens.fonts.handZh, tokens.fonts.handLoose)
+    val style = tokens.typography.body.copy(
+        fontFamily = family,
+        fontSize = 17.sp,
+        lineHeight = 34.sp,
+        letterSpacing = 0.34.sp,
+        color = tokens.colors.ink,
+    )
+    androidx.compose.foundation.text.BasicTextField(
+        value = TextFieldValue(text = text, selection = selection),
+        onValueChange = onChange,
+        textStyle = style,
+        cursorBrush = SolidColor(tokens.colors.seal),
+        visualTransformation = transformation,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 360.dp),
+        decorationBox = { inner ->
+            if (text.isEmpty()) {
+                Text("落笔便是心声。", style = style.copy(color = tokens.colors.inkGhost))
+            }
+            inner()
+        },
+    )
+}
+
+@Composable
+private fun ScanEditorSection(
+    state: ComposeUiState,
+    onPickScan: () -> Unit,
+    onClearScan: () -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    Text(
+        "扫描信:上传图片或 PDF 作为信件主体。寄出后会进入 OCR 索引。",
+        style = tokens.typography.body.copy(fontSize = 12.sp, lineHeight = 18.sp, color = tokens.colors.inkFaded),
+    )
+    Spacer(Modifier.height(8.dp))
+    if (state.scanBound) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "已绑定:${state.scanFilename ?: "(已上传)"}",
+                style = tokens.typography.body.copy(fontSize = 13.sp),
+            )
+            val previewUrl = state.scanPreviewUrl
+            val ct = state.scanContentType
+            val isImage = ct == null && previewUrl != null && Regex("\\.(jpe?g|png|webp|gif)(\\?|$)").containsMatchIn(previewUrl)
+                || ct?.startsWith("image/") == true
+            if (previewUrl != null && isImage) {
+                Spacer(Modifier.height(8.dp))
+                AsyncImage(
+                    model = previewUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).clip(RoundedCornerShape(4.dp)),
+                )
+            }
+            if (previewUrl != null && !isImage) {
+                val uri = LocalUriHandler.current
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = { uri.openUri(previewUrl) }) {
+                    Text("在浏览器中打开 PDF")
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(enabled = !state.scanUploading, onClick = onPickScan, shape = RoundedCornerShape(2.dp)) {
+                    Text(if (state.scanUploading) "处理中…" else "替换", style = tokens.typography.meta.copy(fontSize = 11.sp))
+                }
+                OutlinedButton(enabled = !state.scanUploading, onClick = onClearScan, shape = RoundedCornerShape(2.dp)) {
+                    Text("移除", style = tokens.typography.meta.copy(fontSize = 11.sp))
+                }
+            }
+        }
+    } else {
+        Button(
+            enabled = !state.scanUploading,
+            onClick = onPickScan,
+            shape = RoundedCornerShape(2.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = tokens.colors.seal,
+                contentColor = tokens.colors.paperRaised,
+            ),
+        ) {
+            Text(
+                if (state.scanUploading) "上传中…" else "选择扫描件并上传",
+                style = tokens.typography.meta.copy(fontSize = 12.sp, letterSpacing = 1.sp),
+            )
+        }
     }
 }
 
@@ -342,17 +1040,26 @@ private fun SealDraftDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) 
         title = { Text("封存至未来") },
         text = {
             Column {
-                Text("封存期间草稿不可编辑/寄出。选择预设或输入分钟数：", style = MaterialTheme.typography.labelSmall)
+                Text("封存期间草稿不可编辑/寄出。", style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(6.dp))
-                FlowChips(
-                    items = presets.map { (m, label) -> Triple(m.toString(), label, minutes == m.toString()) },
-                    onSelect = { minutes = it }
-                )
-                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    presets.forEach { (m, label) ->
+                        val sel = minutes == m.toString()
+                        OutlinedButton(
+                            onClick = { minutes = m.toString() },
+                            shape = RoundedCornerShape(2.dp),
+                            colors = if (sel) ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant) else ButtonDefaults.outlinedButtonColors(),
+                        ) {
+                            Text(label, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = minutes,
                     onValueChange = { minutes = it.filter { c -> c.isDigit() } },
-                    label = { Text("分钟") }, singleLine = true
+                    label = { Text("分钟") },
+                    singleLine = true,
                 )
             }
         },
@@ -363,10 +1070,10 @@ private fun SealDraftDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) 
                     val m = minutes.toInt()
                     val target = kotlin.time.Clock.System.now().plus(kotlin.time.Duration.parse("${m}m"))
                     onConfirm(target.toString())
-                }
+                },
             ) { Text("封存") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }
 
@@ -374,7 +1081,7 @@ private fun SealDraftDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) 
 private fun StickerPickerDialog(
     stickers: List<com.luvtter.contract.dto.StickerDto>,
     onDismiss: () -> Unit,
-    onPick: (String) -> Unit
+    onPick: (String) -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -383,37 +1090,17 @@ private fun StickerPickerDialog(
             Column {
                 Text("贴纸会计入信件重量。", style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(6.dp))
-                FlowChips(
-                    items = stickers.map { Triple(it.id, "${it.name} · ${it.weight}g", false) },
-                    onSelect = onPick
-                )
+                Column {
+                    stickers.forEach { s ->
+                        TextButton(onClick = { onPick(s.id) }) {
+                            Text("${s.name} · ${s.weight}g")
+                        }
+                    }
+                }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
-    )
-}
-
-@Composable
-private fun LetterBodyEditor(
-    text: String,
-    selection: androidx.compose.ui.text.TextRange,
-    struckMask: List<Boolean>,
-    onChange: (TextFieldValue) -> Unit,
-) {
-    val struckColor = MaterialTheme.colorScheme.onSurfaceVariant
-    // 字符级 visualTransformation:同位置字符若 struck=true,加 line-through 染色;
-    // 长度不变,所以 OffsetMapping.Identity 足够,光标可在划线 / 非划线之间自由移动。
-    val transformation = remember(struckMask, struckColor) {
-        strikeMaskTransformation(struckMask, struckColor)
-    }
-    OutlinedTextField(
-        value = TextFieldValue(text = text, selection = selection),
-        onValueChange = onChange,
-        label = { Text(if (struckMask.any { it }) "信件正文(含划痕)" else "信件正文") },
-        visualTransformation = transformation,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp),
-        minLines = 8
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }
 
@@ -423,7 +1110,7 @@ private fun strikeMaskTransformation(mask: List<Boolean>, color: Color): VisualT
             input.text.forEachIndexed { i, c ->
                 if (mask.getOrElse(i) { false }) {
                     withStyle(
-                        SpanStyle(textDecoration = TextDecoration.LineThrough, color = color)
+                        SpanStyle(textDecoration = TextDecoration.LineThrough, color = color),
                     ) { append(c) }
                 } else {
                     append(c)
@@ -433,53 +1120,78 @@ private fun strikeMaskTransformation(mask: List<Boolean>, color: Color): VisualT
         TransformedText(annotated, OffsetMapping.Identity)
     }
 
-@Composable
-private fun ScanEditorSection(
-    state: ComposeUiState,
-    onPickScan: () -> Unit,
-    onClearScan: () -> Unit,
-) {
-    Text(
-        "扫描信:上传一张图片或 PDF 作为信件主体。文本类编辑器将被替代,寄出后会进入 OCR 索引以便搜索。",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-    Spacer(Modifier.height(8.dp))
-    if (state.scanBound) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text("已绑定:${state.scanFilename ?: "(已上传)"}", style = MaterialTheme.typography.bodyMedium)
-            val previewUrl = state.scanPreviewUrl
-            val ct = state.scanContentType
-            val isImage = ct == null && previewUrl != null && Regex("\\.(jpe?g|png|webp|gif)(\\?|$)").containsMatchIn(previewUrl)
-                || ct?.startsWith("image/") == true
-            if (previewUrl != null && isImage) {
-                Spacer(Modifier.height(8.dp))
-                AsyncImage(
-                    model = previewUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).clip(RoundedCornerShape(8.dp))
-                )
-            }
-            if (previewUrl != null && !isImage) {
-                val uri = LocalUriHandler.current
-                Spacer(Modifier.height(4.dp))
-                TextButton(onClick = { uri.openUri(previewUrl) }) {
-                    Text("在浏览器中打开 PDF")
+private fun stationeryCodeOf(items: List<StationeryDto>, id: String?): String? =
+    id?.let { sid -> items.firstOrNull { it.id == sid }?.code }
+
+private fun stampCodeOf(items: List<com.luvtter.contract.dto.StampDto>, id: String?): String? =
+    id?.let { sid -> items.firstOrNull { it.id == sid }?.code }
+
+private fun fontFamilyFor(
+    code: String?,
+    serifZh: androidx.compose.ui.text.font.FontFamily,
+    handZh: androidx.compose.ui.text.font.FontFamily,
+    handLoose: androidx.compose.ui.text.font.FontFamily,
+): androidx.compose.ui.text.font.FontFamily = when (code) {
+    "kaiti" -> handZh
+    "handwriting-1" -> handLoose
+    else -> serifZh
+}
+
+private fun Modifier.stationeryRulesCompose(rule: StationeryRule, lineColor: Color): Modifier =
+    this.drawBehind {
+        val step = 32f
+        when (rule) {
+            StationeryRule.Lines -> {
+                var y = step
+                while (y < size.height) {
+                    drawLine(
+                        color = lineColor.copy(alpha = 0.16f),
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 0.5f,
+                    )
+                    y += step
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            Row {
-                OutlinedButton(enabled = !state.scanUploading, onClick = onPickScan) {
-                    Text(if (state.scanUploading) "处理中..." else "替换扫描件")
+            StationeryRule.Grid -> {
+                var y = step
+                while (y < size.height) {
+                    drawLine(
+                        color = lineColor.copy(alpha = 0.10f),
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 0.5f,
+                    )
+                    y += step
                 }
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(enabled = !state.scanUploading, onClick = onClearScan) { Text("移除") }
+                var x = step
+                while (x < size.width) {
+                    drawLine(
+                        color = lineColor.copy(alpha = 0.08f),
+                        start = Offset(x, 0f),
+                        end = Offset(x, size.height),
+                        strokeWidth = 0.5f,
+                    )
+                    x += step
+                }
             }
-        }
-    } else {
-        Button(enabled = !state.scanUploading, onClick = onPickScan) {
-            Text(if (state.scanUploading) "上传中..." else "选择扫描件并上传")
+            StationeryRule.Tatebun -> {
+                var x = step * 0.4f
+                while (x < size.width) {
+                    drawLine(
+                        color = LuvtterColorsLike.tatebun.copy(alpha = 0.25f),
+                        start = Offset(x, 0f),
+                        end = Offset(x, size.height),
+                        strokeWidth = 0.5f,
+                    )
+                    x += 14f
+                }
+            }
+            StationeryRule.None -> Unit
         }
     }
+
+private object LuvtterColorsLike {
+    val tatebun = Color(0xFF8C3C1E)
 }
+
