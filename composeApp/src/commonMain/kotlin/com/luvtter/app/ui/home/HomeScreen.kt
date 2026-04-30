@@ -1,5 +1,6 @@
 package com.luvtter.app.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -12,8 +13,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.sp
+import com.luvtter.app.theme.LuvtterTheme
 import com.luvtter.app.ui.common.formatLocalDateTime
 import com.luvtter.app.ui.letter.InboxStack
+import com.luvtter.app.ui.letter.OutboxList
 import com.luvtter.contract.dto.AddressDto
 import com.luvtter.contract.dto.FolderDto
 import com.luvtter.contract.dto.LetterSummaryDto
@@ -148,88 +155,68 @@ private fun HomeContent(
     val currentAddress = remember(user, state.addresses) {
         state.addresses.firstOrNull { it.id == user?.currentAddressId }
     }
+    val handleLabel = user?.handle?.let { "@$it" } ?: "@—"
+    val needsFinalize = user?.handleFinalized == false
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(user?.displayName?.let { "你好，$it" } ?: "信件")
-                        val handle = user?.handle ?: "—"
-                        val needsFinalize = user?.handleFinalized == false
-                        Text(
-                            if (needsFinalize) "@$handle (临时)" else "@$handle",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                },
-                actions = {
-                    BadgedBox(badge = { if (state.unread > 0) Badge { Text("${state.unread}") } }) {
-                        IconButton(onClick = onOpenNotifications) { Text("铃") }
-                    }
-                    IconButton(onClick = onShowSearch) { Text("搜", style = MaterialTheme.typography.labelLarge) }
-                    IconButton(onClick = onContacts) { Text("人", style = MaterialTheme.typography.labelLarge) }
-                    IconButton(onClick = onAddresses) { Text("址", style = MaterialTheme.typography.labelLarge) }
-                    IconButton(onClick = onSessions) { Text("设", style = MaterialTheme.typography.labelLarge) }
-                    IconButton(onClick = onRequestExport, enabled = !state.exporting) {
-                        Text(if (state.exporting) "…" else "导", style = MaterialTheme.typography.labelLarge)
-                    }
-                    IconButton(onClick = onRefreshAll) { Text("⟳") }
-                    TextButton(onClick = onLogout) { Text("退出") }
-                }
+    Row(modifier = Modifier.fillMaxSize()) {
+        HomeSidebar(
+            selected = state.tab,
+            onSelectTab = onSelectTab,
+            unread = state.unread,
+            handleLabel = handleLabel,
+            needsFinalize = needsFinalize,
+            onOpenNotifications = onOpenNotifications,
+            onSearch = onShowSearch,
+            onContacts = onContacts,
+            onAddresses = onAddresses,
+            onSessions = onSessions,
+            onCompose = onCompose,
+            onExport = onRequestExport,
+            exporting = state.exporting,
+            onRefresh = onRefreshAll,
+            onLogout = onLogout,
+        )
+
+        Column(modifier = Modifier.weight(1f).fillMaxSize()) {
+            HomeHeader(
+                tab = state.tab,
+                lettersCount = state.letters.size,
+                unread = state.unread,
+                currentAddressLabel = currentAddress?.let { "${it.label} · ${it.type}" } ?: "未设置",
+                onSwitchLocation = onShowSwitchLocation,
             )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onCompose, text = { Text("写信") }, icon = { Text("✉") })
-        }
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+
+            if (needsFinalize) {
+                Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            "当前位置：" + (currentAddress?.let { "${it.label} · ${it.type}" } ?: "未设置"),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f)
+                            "当前 handle 是临时的，别人寄信时找不到你",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.weight(1f),
                         )
-                        TextButton(onClick = onShowSwitchLocation) { Text("切换位置") }
-                    }
-                    if (user?.handleFinalized == false) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "当前 handle 是临时的，别人寄信时找不到你",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = onShowFinalizeHandle) { Text("设置专属 handle") }
-                        }
+                        TextButton(onClick = onShowFinalizeHandle) { Text("设置专属 handle") }
                     }
                 }
             }
 
             if (state.showFirstLetterPrompt) {
-                FirstLetterPromptCard(
-                    onStart = onStartFirstLetter,
-                    onDismiss = onDismissFirstLetterPrompt
-                )
+                FirstLetterPromptCard(onStart = onStartFirstLetter, onDismiss = onDismissFirstLetterPrompt)
             }
 
             state.lastExport?.let { ex ->
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 "已导出 ${ex.letterCount} 封信(${ex.sizeBytes / 1024} KB),链接 ${ex.expiresInSeconds / 60} 分钟内有效",
                                 style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
                             )
-                            TextButton(onClick = { onOpenExportLink(ex.downloadUrl) }) {
-                                Text("打开下载")
-                            }
+                            TextButton(onClick = { onOpenExportLink(ex.downloadUrl) }) { Text("打开下载") }
                         }
                         SelectionContainer {
                             Text(
@@ -238,27 +225,22 @@ private fun HomeContent(
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onOpenExportLink(ex.downloadUrl) }
+                                    .clickable { onOpenExportLink(ex.downloadUrl) },
                             )
                         }
                     }
                 }
             }
 
-            PrimaryTabRow(selectedTabIndex = state.tab.ordinal) {
-                HomeTab.entries.forEach { t ->
-                    Tab(selected = state.tab == t, onClick = { onSelectTab(t) }, text = { Text(t.label) })
-                }
-            }
             if (state.tab == HomeTab.Inbox || state.tab == HomeTab.Outbox) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     FilterChip(
                         selected = state.showHidden,
                         onClick = onToggleShowHidden,
-                        label = { Text(if (state.showHidden) "查看已隐藏" else "正常视图") }
+                        label = { Text(if (state.showHidden) "查看已隐藏" else "正常视图") },
                     )
                     Spacer(Modifier.weight(1f))
                     if (state.showHidden) {
@@ -272,18 +254,18 @@ private fun HomeContent(
                     selectedId = state.selectedFolderId,
                     onSelect = onSelectFolder,
                     onCreate = onCreateFolder,
-                    onDelete = onDeleteFolder
+                    onDelete = onDeleteFolder,
                 )
             }
             if (state.loading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
             state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
+                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(24.dp))
             }
             state.reward?.let {
                 Surface(color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
-                    Text(it, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                    Text(it, modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.bodySmall)
                 }
             }
             if (!state.loading && state.letters.isEmpty()) {
@@ -306,6 +288,12 @@ private fun HomeContent(
                     onOpen = onOpenLetter,
                     modifier = Modifier.fillMaxSize(),
                 )
+            } else if (state.tab == HomeTab.Outbox && !state.showHidden) {
+                OutboxList(
+                    letters = state.letters,
+                    onOpen = onOpenLetter,
+                    modifier = Modifier.fillMaxSize(),
+                )
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(state.letters, key = { it.id }) { l ->
@@ -318,7 +306,7 @@ private fun HomeContent(
                             onDeleteDraft = if (isDraft) { { onDeleteDraft(l.id) } } else null,
                             onExpedite = if (mine && l.status == "in_transit") { { onExpedite(l.id) } } else null,
                             onHide = if (!state.showHidden && !l.hidden) { { onHide(l.id) } } else null,
-                            onUnhide = if (state.showHidden || l.hidden) { { onUnhide(l.id) } } else null
+                            onUnhide = if (state.showHidden || l.hidden) { { onUnhide(l.id) } } else null,
                         )
                         HorizontalDivider()
                     }
@@ -357,6 +345,87 @@ private fun HomeContent(
             onDismiss = onDismissSearch,
             onOpen = onOpenLetterFromSearch
         )
+    }
+}
+
+@Composable
+private fun HomeHeader(
+    tab: HomeTab,
+    lettersCount: Int,
+    unread: Int,
+    currentAddressLabel: String,
+    onSwitchLocation: () -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    val ruleSoft = tokens.colors.ruleSoft
+    val title = when (tab) {
+        HomeTab.Inbox -> "收件箱"
+        HomeTab.Outbox -> "寄件箱"
+        HomeTab.Drafts -> "草稿"
+        HomeTab.Favorites -> "收藏"
+        HomeTab.Folders -> "分类"
+    }
+    val meta = when (tab) {
+        HomeTab.Inbox -> "已收 $lettersCount 封 · 未拆 $unread"
+        HomeTab.Outbox -> "在途与既往 $lettersCount 封 · 邮差风雪兼程"
+        HomeTab.Drafts -> "${lettersCount} 封未寄出"
+        HomeTab.Favorites -> "$lettersCount 封被你折角"
+        HomeTab.Folders -> "$lettersCount 封分门别类"
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(tokens.colors.paper)
+            .drawBehind {
+                drawLine(
+                    color = ruleSoft,
+                    start = Offset(0f, size.height - 0.5f),
+                    end = Offset(size.width, size.height - 0.5f),
+                    strokeWidth = 0.5f,
+                )
+            }
+            .padding(horizontal = 32.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = tokens.typography.title.copy(
+                    fontSize = 26.sp,
+                    letterSpacing = 1.56.sp,
+                ),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                meta,
+                style = tokens.typography.caption.copy(fontSize = 13.sp, color = tokens.colors.inkFaded),
+            )
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                "当前位置",
+                style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    currentAddressLabel,
+                    style = tokens.typography.body.copy(
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = tokens.colors.inkSoft,
+                    ),
+                )
+                TextButton(
+                    onClick = onSwitchLocation,
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                ) {
+                    Text(
+                        "切换",
+                        style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.seal),
+                    )
+                }
+            }
+        }
     }
 }
 

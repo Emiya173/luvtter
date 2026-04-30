@@ -12,7 +12,6 @@ import com.luvtter.app.navigation.ComposeRoute
 import com.luvtter.app.navigation.ContactsRoute
 import com.luvtter.app.navigation.HomeRoute
 import com.luvtter.app.navigation.LetterDetailRoute
-import com.luvtter.app.navigation.LetterPlaygroundRoute
 import com.luvtter.app.navigation.LoginRoute
 import com.luvtter.app.navigation.RegisterRoute
 import com.luvtter.app.navigation.SessionsRoute
@@ -23,7 +22,6 @@ import com.luvtter.app.ui.compose.ComposeScreen
 import com.luvtter.app.ui.contacts.ContactsScreen
 import com.luvtter.app.ui.home.HomeScreen
 import com.luvtter.app.ui.letter.LetterDetailScreen
-import com.luvtter.app.ui.letter.LetterPlaygroundScreen
 import com.luvtter.app.ui.sessions.SessionsScreen
 import com.luvtter.shared.auth.TokenStore
 import com.luvtter.shared.network.createRawHttpClient
@@ -57,11 +55,7 @@ fun App() {
                             nav.navigate(HomeRoute) { popUpTo(LoginRoute) { inclusive = true } }
                         },
                         onGoRegister = { nav.navigate(RegisterRoute) },
-                        onPlayground = { nav.navigate(LetterPlaygroundRoute) },
                     )
-                }
-                composable<LetterPlaygroundRoute> {
-                    LetterPlaygroundScreen(onBack = { nav.popBackStack() })
                 }
                 composable<RegisterRoute> {
                     RegisterScreen(
