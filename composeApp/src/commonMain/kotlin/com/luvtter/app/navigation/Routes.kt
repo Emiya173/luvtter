@@ -29,3 +29,7 @@ data object ContactsRoute
 
 @Serializable
 data object SessionsRoute
+
+// 临时 P2 沙盒入口,P3+ 删除
+@Serializable
+data object LetterPlaygroundRoute

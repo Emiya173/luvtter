@@ -235,7 +235,7 @@
 
 ```
 - P1 ✅ 完成于 2026-04-29(主题 + 三 Modifier + 13 个 ttf 字体已挂入 `composeApp/src/commonMain/composeResources/font/`)
-- P2 ⬜
+- P2 ✅ 完成于 2026-04-29(Specs + Postmark/Stamp/WaxSeal/EnvelopeThumb/RouteMap/EnvelopeIcon 六组件 + LetterPlaygroundScreen,LoginScreen 临时入口"↗ 组件沙盒")
 - P3 ⬜
 - P4 ⬜
 - P5 ⬜

@@ -16,6 +16,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LoginScreen(
     onSuccess: () -> Unit,
     onGoRegister: () -> Unit,
+    onPlayground: (() -> Unit)? = null,
     vm: LoginViewModel = koinViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -24,7 +25,8 @@ fun LoginScreen(
         onEmailChange = vm::onEmailChange,
         onPasswordChange = vm::onPasswordChange,
         onSubmit = { vm.submit(onSuccess) },
-        onGoRegister = onGoRegister
+        onGoRegister = onGoRegister,
+        onPlayground = onPlayground,
     )
 }
 
@@ -34,7 +36,8 @@ private fun LoginContent(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onSubmit: () -> Unit,
-    onGoRegister: () -> Unit
+    onGoRegister: () -> Unit,
+    onPlayground: (() -> Unit)?,
 ) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -70,6 +73,10 @@ private fun LoginContent(
             ) { Text(if (state.loading) "登录中..." else "登录") }
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = onGoRegister) { Text("没有账号？去注册") }
+            onPlayground?.let {
+                Spacer(Modifier.height(2.dp))
+                TextButton(onClick = it) { Text("↗ 组件沙盒") }
+            }
         }
     }
 }
