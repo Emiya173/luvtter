@@ -1,13 +1,36 @@
 package com.luvtter.app.ui.auth
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.luvtter.app.theme.LuvtterTheme
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -34,46 +57,154 @@ private fun RegisterContent(
     onDisplayNameChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onSubmit: () -> Unit,
-    onGoLogin: () -> Unit
+    onGoLogin: () -> Unit,
 ) {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+    val tokens = LuvtterTheme.tokens
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(listOf(tokens.colors.paper, tokens.colors.paperDeep))
+            ),
+        color = androidx.compose.ui.graphics.Color.Transparent,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 48.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Text("注册", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(24.dp))
-            OutlinedTextField(
-                value = state.email, onValueChange = onEmailChange,
-                label = { Text("邮箱") }, singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = state.displayName, onValueChange = onDisplayNameChange,
-                label = { Text("昵称") }, singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = state.password, onValueChange = onPasswordChange,
-                label = { Text("密码 (≥8位)") }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            state.error?.let {
+            Column(
+                modifier = Modifier.widthIn(max = 380.dp).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "luvtter",
+                    style = tokens.typography.brand.copy(
+                        fontSize = 36.sp,
+                        fontStyle = FontStyle.Italic,
+                        color = tokens.colors.ink,
+                    ),
+                )
                 Spacer(Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "慢 · 一 · 拍",
+                    style = tokens.typography.meta.copy(
+                        fontSize = 10.sp,
+                        color = tokens.colors.inkFaded,
+                    ),
+                )
+                Spacer(Modifier.height(32.dp))
+
+                SectionRule("申 · 领 ENROL")
+                Spacer(Modifier.height(28.dp))
+
+                FieldLabel("邮 · 件 · 地 · 址")
+                Spacer(Modifier.height(6.dp))
+                PaperField(
+                    value = state.email,
+                    onValueChange = onEmailChange,
+                    placeholder = "name@example.com",
+                    keyboardType = KeyboardType.Email,
+                )
+                Spacer(Modifier.height(20.dp))
+
+                FieldLabel("书 · 写 · 名 · 号")
+                Spacer(Modifier.height(6.dp))
+                PaperField(
+                    value = state.displayName,
+                    onValueChange = onDisplayNameChange,
+                    placeholder = "你愿意被如何称呼",
+                    keyboardType = KeyboardType.Text,
+                )
+                Spacer(Modifier.height(20.dp))
+
+                FieldLabel("启 · 信 · 钥（≥ 8 字）")
+                Spacer(Modifier.height(6.dp))
+                PaperField(
+                    value = state.password,
+                    onValueChange = onPasswordChange,
+                    placeholder = "••••••••",
+                    keyboardType = KeyboardType.Password,
+                    isPassword = true,
+                )
+
+                state.error?.let {
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .height(10.dp)
+                                .widthIn(min = 2.dp, max = 2.dp)
+                                .background(tokens.colors.seal),
+                        )
+                        Spacer(Modifier.widthIn(min = 8.dp, max = 8.dp))
+                        Text(
+                            it,
+                            style = tokens.typography.meta.copy(
+                                fontSize = 11.sp,
+                                color = tokens.colors.seal,
+                            ),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(32.dp))
+
+                Button(
+                    onClick = onSubmit,
+                    enabled = state.canSubmit,
+                    shape = RoundedCornerShape(2.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = tokens.colors.seal,
+                        contentColor = tokens.colors.paperRaised,
+                        disabledContainerColor = tokens.colors.seal.copy(alpha = 0.5f),
+                        disabledContentColor = tokens.colors.paperRaised.copy(alpha = 0.7f),
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                ) {
+                    Text(
+                        if (state.loading) "誊写中…" else "立 · 籍 · 入 · 信 · 局",
+                        maxLines = 1,
+                        style = TextStyle(
+                            fontFamily = tokens.fonts.serifZh,
+                            fontSize = 15.sp,
+                            lineHeight = 22.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 1.2.sp,
+                        ),
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "已有信籍？",
+                        style = tokens.typography.meta.copy(
+                            fontSize = 11.sp,
+                            color = tokens.colors.inkFaded,
+                        ),
+                    )
+                    TextButton(
+                        onClick = onGoLogin,
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    ) {
+                        Text(
+                            "↩ 返 回 登 录",
+                            style = TextStyle(
+                                fontFamily = tokens.fonts.serifZh,
+                                fontSize = 13.sp,
+                                color = tokens.colors.ink,
+                                letterSpacing = 0.6.sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                        )
+                    }
+                }
             }
-            Spacer(Modifier.height(20.dp))
-            Button(
-                enabled = state.canSubmit,
-                onClick = onSubmit,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (state.loading) "注册中..." else "注册") }
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onGoLogin) { Text("已有账号？去登录") }
         }
     }
 }

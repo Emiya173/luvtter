@@ -1,14 +1,46 @@
 package com.luvtter.app.ui.contacts
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.luvtter.app.theme.LuvtterTheme
+import com.luvtter.app.ui.common.PaperEmptyHint
+import com.luvtter.app.ui.common.PaperFieldLabel
+import com.luvtter.app.ui.common.PaperGhostButton
+import com.luvtter.app.ui.common.PaperInput
+import com.luvtter.app.ui.common.PaperListRow
+import com.luvtter.app.ui.common.PaperPageScaffold
+import com.luvtter.app.ui.common.PaperPrimaryButton
+import com.luvtter.app.ui.common.PaperSectionHeader
+import com.luvtter.app.ui.common.PaperStatusBar
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -34,11 +66,10 @@ fun ContactsScreen(
         onAddAsContact = vm::addAsContact,
         onBlockLookupResult = vm::blockLookupResult,
         onDeleteContact = vm::deleteContact,
-        onUnblock = vm::unblock
+        onUnblock = vm::unblock,
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ContactsContent(
     state: ContactsUiState,
@@ -51,95 +82,252 @@ private fun ContactsContent(
     onAddAsContact: () -> Unit,
     onBlockLookupResult: () -> Unit,
     onDeleteContact: (String) -> Unit,
-    onUnblock: (String) -> Unit
+    onUnblock: (String) -> Unit,
 ) {
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("联系人") }, navigationIcon = { TextButton(onClick = onBack) { Text("返回") } }) }
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    Text("仅好友可寄信给我", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Switch(
-                        checked = onlyFriends,
-                        onCheckedChange = onOnlyFriendsChange
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Text("通过 handle 查找用户", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = state.lookupHandle,
-                    onValueChange = onLookupHandleChange,
-                    label = { Text("handle") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    enabled = !state.loading && state.lookupHandle.isNotBlank(),
-                    onClick = onLookup
-                ) { Text("查找") }
-            }
-
-            state.lookupResult?.let { lr ->
-                Spacer(Modifier.height(8.dp))
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("${lr.user.displayName} · @${lr.user.handle}", style = MaterialTheme.typography.bodyMedium)
-                        Text(if (lr.acceptsFromMe) "可接收你的来信" else "对方未接受陌生来信", style = MaterialTheme.typography.labelSmall)
-                        Spacer(Modifier.height(6.dp))
-                        OutlinedTextField(value = state.note, onValueChange = onNoteChange, label = { Text("备注（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(6.dp))
-                        Row {
-                            Button(enabled = !state.loading, onClick = onAddAsContact) { Text("加为联系人") }
-                            Spacer(Modifier.width(8.dp))
-                            OutlinedButton(enabled = !state.loading, onClick = onBlockLookupResult) { Text("屏蔽") }
+    val tokens = LuvtterTheme.tokens
+    PaperPageScaffold(title = "联 · 系 · 人", onBack = onBack) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 40.dp)
+                .padding(bottom = 48.dp),
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth().widthIn(max = 720.dp),
+            ) {
+                Column {
+                    // ── 收信偏好 ──
+                    PaperSectionHeader("收 · 信 · 偏 · 好  PREFERENCE")
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "仅好友可寄信给我",
+                                style = TextStyle(
+                                    fontFamily = tokens.fonts.serifZh,
+                                    fontSize = 15.sp,
+                                    color = tokens.colors.ink,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.5.sp,
+                                ),
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "开启后,陌生人无法投递信件至你的信箱",
+                                style = tokens.typography.meta.copy(
+                                    fontSize = 11.sp,
+                                    color = tokens.colors.inkFaded,
+                                ),
+                            )
                         }
-                    }
-                }
-            }
-
-            state.status?.let { Spacer(Modifier.height(6.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(8.dp))
-            Text("已添加联系人", style = MaterialTheme.typography.titleSmall)
-            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                items(state.contacts, key = { it.id }) { c ->
-                    ListItem(
-                        headlineContent = { Text("${c.target.displayName} · @${c.target.handle}") },
-                        supportingContent = { c.note?.let { Text(it) } },
-                        trailingContent = {
-                            TextButton(onClick = { onDeleteContact(c.id) }) { Text("删除") }
-                        }
-                    )
-                    HorizontalDivider()
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(8.dp))
-            Text("已屏蔽用户", style = MaterialTheme.typography.titleSmall)
-            if (state.blocks.isEmpty()) {
-                Text("没有屏蔽任何人", style = MaterialTheme.typography.bodySmall)
-            } else {
-                LazyColumn {
-                    items(state.blocks, key = { it.id }) { b ->
-                        ListItem(
-                            headlineContent = { Text("${b.target.displayName} · @${b.target.handle}") },
-                            trailingContent = {
-                                TextButton(onClick = { onUnblock(b.target.id) }) { Text("取消屏蔽") }
-                            }
+                        Switch(
+                            checked = onlyFriends,
+                            onCheckedChange = onOnlyFriendsChange,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = tokens.colors.paperRaised,
+                                checkedTrackColor = tokens.colors.seal,
+                                uncheckedThumbColor = tokens.colors.paperRaised,
+                                uncheckedTrackColor = tokens.colors.inkFaded.copy(alpha = 0.5f),
+                                uncheckedBorderColor = tokens.colors.inkFaded.copy(alpha = 0.5f),
+                            ),
                         )
-                        HorizontalDivider()
+                    }
+
+                    // ── 查找用户 ──
+                    PaperSectionHeader("查 · 寻 · 旧 · 友  SEARCH")
+                    PaperFieldLabel("HANDLE")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        PaperInput(
+                            value = state.lookupHandle,
+                            onValueChange = onLookupHandleChange,
+                            placeholder = "@somebody",
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.widthIn(min = 12.dp, max = 12.dp))
+                        PaperPrimaryButton(
+                            label = if (state.loading) "查 · 找 中" else "查 · 找",
+                            onClick = onLookup,
+                            enabled = !state.loading && state.lookupHandle.isNotBlank(),
+                        )
+                    }
+
+                    state.lookupResult?.let { lr ->
+                        Spacer(Modifier.height(16.dp))
+                        LookupCard(
+                            displayName = lr.user.displayName,
+                            handle = lr.user.handle,
+                            acceptsFromMe = lr.acceptsFromMe,
+                            note = state.note,
+                            loading = state.loading,
+                            onNoteChange = onNoteChange,
+                            onAdd = onAddAsContact,
+                            onBlock = onBlockLookupResult,
+                        )
+                    }
+
+                    state.status?.let { PaperStatusBar(it) }
+
+                    // ── 联系人列表 ──
+                    PaperSectionHeader(
+                        "已 · 添 · 加  CONTACTS",
+                        hint = if (state.contacts.isEmpty()) null else "${state.contacts.size}",
+                    )
+                    if (state.contacts.isEmpty()) {
+                        PaperEmptyHint("尚未结识。")
+                    } else {
+                        state.contacts.forEach { c ->
+                            PaperListRow {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            c.target.displayName,
+                                            style = TextStyle(
+                                                fontFamily = tokens.fonts.serifZh,
+                                                fontSize = 15.sp,
+                                                color = tokens.colors.ink,
+                                                fontWeight = FontWeight.Medium,
+                                                letterSpacing = 0.4.sp,
+                                            ),
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "@${c.target.handle}",
+                                            style = tokens.typography.meta.copy(
+                                                fontSize = 11.sp,
+                                                color = tokens.colors.inkFaded,
+                                            ),
+                                        )
+                                        c.note?.takeIf { it.isNotBlank() }?.let {
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                it,
+                                                style = tokens.typography.caption.copy(
+                                                    fontSize = 12.sp,
+                                                    color = tokens.colors.inkSoft,
+                                                ),
+                                            )
+                                        }
+                                    }
+                                    PaperGhostButton(
+                                        label = "删 除",
+                                        onClick = { onDeleteContact(c.id) },
+                                        danger = true,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // ── 屏蔽 ──
+                    PaperSectionHeader(
+                        "已 · 屏 · 蔽  BLOCKED",
+                        hint = if (state.blocks.isEmpty()) null else "${state.blocks.size}",
+                    )
+                    if (state.blocks.isEmpty()) {
+                        PaperEmptyHint("没有屏蔽任何人。")
+                    } else {
+                        state.blocks.forEach { b ->
+                            PaperListRow {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            b.target.displayName,
+                                            style = TextStyle(
+                                                fontFamily = tokens.fonts.serifZh,
+                                                fontSize = 15.sp,
+                                                color = tokens.colors.ink,
+                                                fontWeight = FontWeight.Medium,
+                                            ),
+                                        )
+                                        Text(
+                                            "@${b.target.handle}",
+                                            style = tokens.typography.meta.copy(
+                                                fontSize = 11.sp,
+                                                color = tokens.colors.inkFaded,
+                                            ),
+                                        )
+                                    }
+                                    PaperGhostButton(
+                                        label = "解 除",
+                                        onClick = { onUnblock(b.target.id) },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LookupCard(
+    displayName: String,
+    handle: String,
+    acceptsFromMe: Boolean,
+    note: String,
+    loading: Boolean,
+    onNoteChange: (String) -> Unit,
+    onAdd: () -> Unit,
+    onBlock: () -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(tokens.colors.paperRaised)
+            .padding(horizontal = 18.dp, vertical = 18.dp),
+    ) {
+        Text(
+            displayName,
+            style = TextStyle(
+                fontFamily = tokens.fonts.serifZh,
+                fontSize = 16.sp,
+                color = tokens.colors.ink,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.5.sp,
+            ),
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "@$handle",
+            style = tokens.typography.meta.copy(fontSize = 11.sp, color = tokens.colors.inkFaded),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (acceptsFromMe) "○ 可接收你的来信" else "● 对方未接受陌生来信",
+            style = tokens.typography.meta.copy(
+                fontSize = 11.sp,
+                color = if (acceptsFromMe) tokens.colors.inkSoft else tokens.colors.seal,
+            ),
+        )
+        Spacer(Modifier.height(14.dp))
+        PaperFieldLabel("备 注（可选）")
+        PaperInput(
+            value = note,
+            onValueChange = onNoteChange,
+            placeholder = "如何想起这位朋友",
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PaperPrimaryButton(
+                label = "加 为 联 系 人",
+                onClick = onAdd,
+                enabled = !loading,
+            )
+            PaperGhostButton(
+                label = "屏 蔽",
+                onClick = onBlock,
+                enabled = !loading,
+                danger = true,
+            )
         }
     }
 }
