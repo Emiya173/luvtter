@@ -269,7 +269,7 @@ private fun HomeContent(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    com.luvtter.app.ui.common.PaperChip(
+                    PaperChip(
                         label = if (state.showHidden) "查 看 已 隐 藏" else "正 常 视 图",
                         selected = state.showHidden,
                         onClick = onToggleShowHidden,

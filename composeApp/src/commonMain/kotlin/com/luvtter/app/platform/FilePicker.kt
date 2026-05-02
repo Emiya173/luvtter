@@ -14,6 +14,27 @@ data class PickedImage(
     val bytes: ByteArray,
 ) {
     val sizeBytes: Long get() = bytes.size.toLong()
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as PickedImage
+
+        if (filename != other.filename) return false
+        if (contentType != other.contentType) return false
+        if (!bytes.contentEquals(other.bytes)) return false
+        if (sizeBytes != other.sizeBytes) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = filename.hashCode()
+        result = 31 * result + contentType.hashCode()
+        result = 31 * result + bytes.contentHashCode()
+        result = 31 * result + sizeBytes.hashCode()
+        return result
+    }
 }
 
 /**

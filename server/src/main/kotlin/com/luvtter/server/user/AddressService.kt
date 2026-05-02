@@ -13,7 +13,6 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -72,9 +71,10 @@ class AddressService {
     }
 
     fun update(userId: Uuid, addressId: Uuid, req: UpdateAddressRequest): AddressDto = transaction {
-        val row = UserAddresses.selectAll()
+        val missing = UserAddresses.selectAll()
             .where { (UserAddresses.id eq addressId) and (UserAddresses.userId eq userId) and (UserAddresses.deletedAt.isNull()) }
-            .firstOrNull() ?: throw NotFoundException(message = "地址不存在")
+            .empty()
+        if (missing) throw NotFoundException(message = "地址不存在")
         UserAddresses.update({ UserAddresses.id eq addressId }) {
             req.label?.let { v -> it[label] = v }
             req.latitude?.let { v -> it[latitude] = v }

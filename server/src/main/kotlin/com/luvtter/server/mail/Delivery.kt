@@ -24,8 +24,7 @@ private fun stampFactor(tier: Int): Double = when (tier) {
 
 fun computeDeliveryAt(sentAt: OffsetDateTime, distance: Int, tier: Int): OffsetDateTime {
     val rand = 0.9 + Random.nextDouble() * 0.2
-    val hours = (baseHours(distance) * stampFactor(tier) * rand)
-        .let { max(1.0, min(14 * 24.0, it)) }
+    val hours = max(1.0, min(14 * 24.0, (baseHours(distance) * stampFactor(tier) * rand)))
     val seconds = (hours * 3600).toLong()
     return sentAt.plusSeconds(seconds)
 }

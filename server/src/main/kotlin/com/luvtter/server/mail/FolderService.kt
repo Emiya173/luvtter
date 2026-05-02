@@ -52,8 +52,9 @@ class FolderService {
     }
 
     fun update(userId: Uuid, id: Uuid, req: UpdateFolderRequest): FolderDto = transaction {
-        val row = Folders.selectAll().where { (Folders.id eq id) and (Folders.userId eq userId) }.firstOrNull()
-            ?: throw NotFoundException(message = "分类不存在")
+        val missing = Folders.selectAll().where { (Folders.id eq id) and (Folders.userId eq userId) }
+            .empty()
+        if (missing) throw NotFoundException(message = "分类不存在")
         Folders.update({ Folders.id eq id }) {
             req.name?.let { v -> it[name] = v }
             req.icon?.let { v -> it[icon] = v }
@@ -84,8 +85,9 @@ class FolderService {
 
         LetterFolders.deleteWhere { (LetterFolders.letterId eq letterId) and (LetterFolders.userId eq userId) }
         folderId?.let { fid ->
-            val own = Folders.selectAll().where { (Folders.id eq fid) and (Folders.userId eq userId) }.firstOrNull()
-                ?: throw ValidationException("分类不存在")
+            val missing = Folders.selectAll().where { (Folders.id eq fid) and (Folders.userId eq userId) }
+                .empty()
+            if (missing) throw ValidationException("分类不存在")
             LetterFolders.insert {
                 it[LetterFolders.letterId] = letterId
                 it[LetterFolders.userId] = userId

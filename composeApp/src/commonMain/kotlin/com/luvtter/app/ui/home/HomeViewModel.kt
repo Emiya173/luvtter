@@ -2,32 +2,15 @@ package com.luvtter.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.luvtter.contract.dto.CreateFolderRequest
-import com.luvtter.contract.dto.ExportResultDto
-import com.luvtter.contract.dto.FinalizeHandleRequest
-import com.luvtter.contract.dto.LetterSummaryDto
-import com.luvtter.contract.dto.UpdateOnboardingStateRequest
-import com.luvtter.contract.dto.UserDto
 import com.luvtter.app.platform.setAppBadgeCount
+import com.luvtter.contract.dto.*
 import com.luvtter.shared.auth.TokenStore
-import com.luvtter.shared.network.AddressApi
-import com.luvtter.shared.network.DailyRewardApi
-import com.luvtter.shared.network.FolderApi
-import com.luvtter.shared.network.LetterApi
-import com.luvtter.shared.network.MeApi
-import com.luvtter.shared.network.NotificationApi
-import kotlinx.datetime.TimeZone
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.retry
-import kotlinx.coroutines.flow.update
+import com.luvtter.shared.network.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlin.time.Duration.Companion.milliseconds
 
 class HomeViewModel(
     private val tokens: TokenStore,
@@ -54,8 +37,8 @@ class HomeViewModel(
         viewModelScope.launch { reload() }
         viewModelScope.launch {
             notifications.stream()
-                .retry { e ->
-                    delay(3000)
+                .retry { _ ->
+                    delay(3000.milliseconds)
                     true
                 }
                 .catch { /* swallow terminal errors */ }

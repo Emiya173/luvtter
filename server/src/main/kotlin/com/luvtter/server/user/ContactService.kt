@@ -9,7 +9,6 @@ import com.luvtter.server.config.ValidationException
 import com.luvtter.server.db.Blocks
 import com.luvtter.server.db.Contacts
 import com.luvtter.server.db.Users
-import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -68,9 +67,10 @@ class ContactService {
     }
 
     fun update(ownerId: Uuid, contactId: Uuid, req: UpdateContactRequest): ContactDto = transaction {
-        val row = Contacts.selectAll()
+        val missing = Contacts.selectAll()
             .where { (Contacts.id eq contactId) and (Contacts.ownerId eq ownerId) }
-            .firstOrNull() ?: throw NotFoundException(message = "联系人不存在")
+            .empty()
+        if (missing) throw NotFoundException(message = "联系人不存在")
         Contacts.update({ Contacts.id eq contactId }) {
             req.note?.let { v -> it[note] = v }
             req.relation?.let { v -> it[relation] = v }

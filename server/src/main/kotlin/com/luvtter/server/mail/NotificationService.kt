@@ -28,22 +28,22 @@ private val nlog = KotlinLogging.logger("com.luvtter.server.notify")
 object NotificationService {
 
     private val streams = ConcurrentHashMap<Uuid, MutableSharedFlow<NotificationDto>>()
-    private val signalStreams = ConcurrentHashMap<Uuid, MutableSharedFlow<com.luvtter.contract.dto.SignalDto>>()
+    private val signalStreams = ConcurrentHashMap<Uuid, MutableSharedFlow<SignalDto>>()
 
     private fun bus(userId: Uuid): MutableSharedFlow<NotificationDto> =
         streams.computeIfAbsent(userId) {
             MutableSharedFlow(replay = 0, extraBufferCapacity = 64)
         }
 
-    private fun signalBus(userId: Uuid): MutableSharedFlow<com.luvtter.contract.dto.SignalDto> =
+    private fun signalBus(userId: Uuid): MutableSharedFlow<SignalDto> =
         signalStreams.computeIfAbsent(userId) {
             MutableSharedFlow(replay = 0, extraBufferCapacity = 64)
         }
 
     fun subscribe(userId: Uuid): SharedFlow<NotificationDto> = bus(userId).asSharedFlow()
-    fun subscribeSignals(userId: Uuid): SharedFlow<com.luvtter.contract.dto.SignalDto> = signalBus(userId).asSharedFlow()
+    fun subscribeSignals(userId: Uuid): SharedFlow<SignalDto> = signalBus(userId).asSharedFlow()
 
-    fun emitSignal(userId: Uuid, signal: com.luvtter.contract.dto.SignalDto) {
+    fun emitSignal(userId: Uuid, signal: SignalDto) {
         signalBus(userId).tryEmit(signal)
         nlog.info { "notify.signal user=$userId type=${signal.type}" }
     }
@@ -117,7 +117,7 @@ object NotificationService {
         return if (start < end) {
             hour in start until end
         } else {
-            hour >= start || hour < end
+            hour !in end..<start
         }
     }
 

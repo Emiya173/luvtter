@@ -21,7 +21,6 @@ import kotlin.random.Random
  * `seed` 决定纹理随机性 —— 同 seed 出的纹理稳定,不会每帧重抖。
  */
 fun Modifier.paperGrain(seed: Long = 1L): Modifier = composed {
-    val tokens = LuvtterTheme.tokens
     val flecks = remember(seed) { generateFlecks(seed) }
     drawWithCache {
         val w = size.width

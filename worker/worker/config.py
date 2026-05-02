@@ -7,6 +7,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Config:
+    def __init__(self):
+        pass
+
     database_url: str
     minio_endpoint: str
     minio_access_key: str

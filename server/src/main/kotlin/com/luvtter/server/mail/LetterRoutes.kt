@@ -1,11 +1,13 @@
 package com.luvtter.server.mail
 
-import com.luvtter.contract.dto.*
+import com.luvtter.contract.dto.ApiResponse
+import com.luvtter.contract.dto.CreateDraftRequest
+import com.luvtter.contract.dto.SealDraftRequest
+import com.luvtter.contract.dto.UpdateDraftRequest
 import com.luvtter.server.auth.userId
 import com.luvtter.server.common.parseId
 import com.luvtter.server.tasks.OcrTaskQuery
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*

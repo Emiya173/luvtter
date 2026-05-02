@@ -7,7 +7,6 @@ import com.luvtter.server.user.ExportService
 import com.luvtter.server.user.OnboardingService
 import com.luvtter.server.user.UserService
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*

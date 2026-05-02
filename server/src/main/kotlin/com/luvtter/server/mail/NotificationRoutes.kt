@@ -14,14 +14,13 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sse.*
-import io.ktor.sse.ServerSentEvent
+import io.ktor.sse.*
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.time.Duration.Companion.milliseconds
 
 private val streamJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
 
@@ -32,7 +31,7 @@ fun Route.notificationRoutes(heartbeatSeconds: Long = 25L) {
             send(ServerSentEvent(event = "ready", data = """{"heartbeatSeconds":$heartbeatSeconds}"""))
             val pingJob = launch {
                 while (isActive) {
-                    delay(heartbeatSeconds * 1000)
+                    delay((heartbeatSeconds * 1000).milliseconds)
                     runCatching {
                         send(ServerSentEvent(event = "ping", data = """{"ts":"${now()}"}"""))
                     }.onFailure { return@launch }

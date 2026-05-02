@@ -4,7 +4,6 @@ import com.luvtter.contract.dto.*
 import com.luvtter.server.auth.userId
 import com.luvtter.server.common.parseId
 import io.ktor.http.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*

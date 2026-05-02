@@ -115,9 +115,10 @@ class UserService {
     }
 
     fun setCurrentAddress(userId: Uuid, addressId: Uuid): UserDto = transaction {
-        val owns = UserAddresses.selectAll()
+        val missing = UserAddresses.selectAll()
             .where { (UserAddresses.id eq addressId) and (UserAddresses.userId eq userId) and (UserAddresses.deletedAt.isNull()) }
-            .firstOrNull() ?: throw NotFoundException(message = "地址不存在")
+            .empty()
+        if (missing) throw NotFoundException(message = "地址不存在")
         Users.update({ Users.id eq userId }) {
             it[currentAddressId] = addressId
             it[updatedAt] = now()

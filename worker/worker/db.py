@@ -26,6 +26,9 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class Task:
+    def __init__(self):
+        pass
+
     id: UUID
     task_type: str
     payload: dict
@@ -85,6 +88,7 @@ class Db:
                 attempts=row["attempts"],
                 max_attempts=row["max_attempts"],
             )
+        return None
 
     def finish_done(self, task_id: UUID) -> None:
         with self._tx() as cur:
@@ -151,6 +155,7 @@ class Db:
             )
             row = cur.fetchone()
             return row
+        return None
 
     def update_index_text(self, letter_id: UUID, text: str) -> int:
         """Write OCR result into letter_contents.index_text. The V6 trigger maintains tsvector."""
@@ -165,3 +170,4 @@ class Db:
                 (text, letter_id),
             )
             return cur.rowcount
+        return None

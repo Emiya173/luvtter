@@ -6,7 +6,6 @@ import com.luvtter.server.db.Stationeries
 import com.luvtter.server.db.Stickers
 import com.luvtter.server.db.UserAssets
 import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction

@@ -8,25 +8,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import luvtter.composeapp.generated.resources.Res
-import luvtter.composeapp.generated.resources.cormorantgaramond_italic
-import luvtter.composeapp.generated.resources.cormorantgaramond_medium
-import luvtter.composeapp.generated.resources.cormorantgaramond_regular
-import luvtter.composeapp.generated.resources.cormorantgaramond_semibold
-import luvtter.composeapp.generated.resources.jetbrainsmono_medium
-import luvtter.composeapp.generated.resources.jetbrainsmono_regular
-import luvtter.composeapp.generated.resources.liujianmaocao_regular
-import luvtter.composeapp.generated.resources.mashanzheng_regular
-import luvtter.composeapp.generated.resources.notoserifsc_bold
-import luvtter.composeapp.generated.resources.notoserifsc_light
-import luvtter.composeapp.generated.resources.notoserifsc_medium
-import luvtter.composeapp.generated.resources.notoserifsc_regular
-import luvtter.composeapp.generated.resources.notoserifsc_semibold
+import luvtter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.Font
 
 /**

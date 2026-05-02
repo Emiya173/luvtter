@@ -1,21 +1,9 @@
 package com.luvtter.app.ui.contacts
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -32,15 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.luvtter.app.theme.LuvtterTheme
-import com.luvtter.app.ui.common.PaperEmptyHint
-import com.luvtter.app.ui.common.PaperFieldLabel
-import com.luvtter.app.ui.common.PaperGhostButton
-import com.luvtter.app.ui.common.PaperInput
-import com.luvtter.app.ui.common.PaperListRow
-import com.luvtter.app.ui.common.PaperPageScaffold
-import com.luvtter.app.ui.common.PaperPrimaryButton
-import com.luvtter.app.ui.common.PaperSectionHeader
-import com.luvtter.app.ui.common.PaperStatusBar
+import com.luvtter.app.ui.common.*
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable

@@ -29,8 +29,8 @@ import kotlin.math.sin
 
 @Composable
 fun Postmark(
-    city: String = "上海",
-    date: String = "腊月十一",
+    city: String = "",
+    date: String = "",
     size: Dp = 74.dp,
     rotateDeg: Float = -8f,
     ink: Color = LuvtterTheme.colors.stampInk,
