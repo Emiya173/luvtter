@@ -16,18 +16,7 @@ import io.ktor.http.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.encodeToJsonElement
-import org.jetbrains.exposed.v1.core.ResultRow
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.VarCharColumnType
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.greaterEq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.isNotNull
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.core.less
-import org.jetbrains.exposed.v1.core.lessEq
+import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -422,7 +411,7 @@ class LetterService(
         row[Letters.senderId]?.let { senderId ->
             NotificationService.emitSignal(
                 senderId,
-                com.luvtter.contract.dto.SignalDto(
+                SignalDto(
                     type = "letter_read",
                     letterId = id.toString(),
                     ts = now().toString()
@@ -657,6 +646,10 @@ class LetterService(
             UserAddresses.selectAll().where { UserAddresses.id eq aid }
                 .firstOrNull()?.get(UserAddresses.label)
         }
+        val senderAddressLabel = row[Letters.senderAddressId]?.let { aid ->
+            UserAddresses.selectAll().where { UserAddresses.id eq aid }
+                .firstOrNull()?.get(UserAddresses.label)
+        }
         val hidden = if (isSenderViewing) row[Letters.senderHiddenAt] != null
         else row[Letters.recipientHiddenAt] != null
         val attCounts = LetterAttachments.selectAll()
@@ -681,6 +674,7 @@ class LetterService(
             isFavorite = isFavorite,
             replyToLetterId = row[Letters.replyToLetterId]?.toString(),
             recipientAddressLabel = recipientAddressLabel,
+            senderAddressLabel = senderAddressLabel,
             hidden = hidden,
             photoCount = attCounts["photo"] ?: 0,
             stickerCount = attCounts["sticker"] ?: 0

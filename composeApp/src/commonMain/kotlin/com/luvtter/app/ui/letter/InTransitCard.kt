@@ -88,6 +88,7 @@ private fun InTransitCard(letter: LetterSummaryDto, onClick: () -> Unit) {
     }
     val recipientName = letter.recipient?.displayName ?: "—"
     val recipientCity = letter.recipientAddressLabel?.takeIf { it.isNotBlank() } ?: "远方"
+    val senderCity = letter.senderAddressLabel?.takeIf { it.isNotBlank() } ?: ""
     val sentLabel = formatLocalDate(letter.sentAt) ?: "—"
     val etaLabel = formatLocalDate(letter.deliveryAt) ?: "—"
 
@@ -106,7 +107,7 @@ private fun InTransitCard(letter: LetterSummaryDto, onClick: () -> Unit) {
             Column {
                 Text("自", style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded))
                 Text(
-                    "上海",
+                    senderCity,
                     style = tokens.typography.body.copy(
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
@@ -157,7 +158,7 @@ private fun InTransitCard(letter: LetterSummaryDto, onClick: () -> Unit) {
 
         RouteMap(
             progress = progress,
-            fromLabel = "沪",
+            fromLabel = senderCity.firstOrNull()?.toString() ?: "—",
             toLabel = recipientCity.firstOrNull()?.toString() ?: "—",
             modifier = Modifier
                 .fillMaxWidth()

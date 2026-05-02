@@ -3,29 +3,24 @@ package com.luvtter.app.ui.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.luvtter.app.theme.LuvtterTheme
-import com.luvtter.app.ui.common.formatLocalDateTime
-import com.luvtter.app.ui.letter.InboxStack
-import com.luvtter.app.ui.letter.OutboxList
-import com.luvtter.contract.dto.AddressDto
-import com.luvtter.contract.dto.FolderDto
-import com.luvtter.contract.dto.LetterSummaryDto
-import com.luvtter.contract.dto.NotificationDto
-import com.luvtter.contract.dto.UserDto
+import com.luvtter.app.ui.common.*
+import com.luvtter.app.ui.letter.*
+import com.luvtter.contract.dto.*
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -187,19 +182,34 @@ private fun HomeContent(
             )
 
             if (needsFinalize) {
-                Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "当前 handle 是临时的，别人寄信时找不到你",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(onClick = onShowFinalizeHandle) { Text("设置专属 handle") }
-                    }
+                val tokens = LuvtterTheme.tokens
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(tokens.colors.seal.copy(alpha = 0.08f))
+                        .padding(horizontal = 32.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .height(12.dp)
+                            .width(2.dp)
+                            .background(tokens.colors.seal),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "当前 handle 是临时的,别人寄信时找不到你",
+                        modifier = Modifier.weight(1f),
+                        style = tokens.typography.meta.copy(
+                            fontSize = 11.sp,
+                            color = tokens.colors.seal,
+                        ),
+                    )
+                    PaperGhostButton(
+                        label = "立 此 一 名",
+                        onClick = onShowFinalizeHandle,
+                        danger = true,
+                    )
                 }
             }
 
@@ -208,43 +218,71 @@ private fun HomeContent(
             }
 
             state.lastExport?.let { ex ->
-                Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "已导出 ${ex.letterCount} 封信(${ex.sizeBytes / 1024} KB),链接 ${ex.expiresInSeconds / 60} 分钟内有效",
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.weight(1f),
-                            )
-                            TextButton(onClick = { onOpenExportLink(ex.downloadUrl) }) { Text("打开下载") }
-                        }
-                        SelectionContainer {
-                            Text(
-                                ex.downloadUrl,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onOpenExportLink(ex.downloadUrl) },
+                val tokens = LuvtterTheme.tokens
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(tokens.colors.paperRaised)
+                        .drawBehind {
+                            drawLine(
+                                color = tokens.colors.ruleSoft,
+                                start = Offset(0f, size.height - 0.5f),
+                                end = Offset(size.width, size.height - 0.5f),
+                                strokeWidth = 0.5f,
                             )
                         }
+                        .padding(horizontal = 32.dp, vertical = 10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "已导出 ${ex.letterCount} 封信 · ${ex.sizeBytes / 1024} KB · 链接 ${ex.expiresInSeconds / 60} 分钟内有效",
+                            modifier = Modifier.weight(1f),
+                            style = tokens.typography.meta.copy(
+                                fontSize = 11.sp,
+                                color = tokens.colors.inkSoft,
+                            ),
+                        )
+                        PaperGhostButton(
+                            label = "打 开 下 载",
+                            onClick = { onOpenExportLink(ex.downloadUrl) },
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    SelectionContainer {
+                        Text(
+                            ex.downloadUrl,
+                            style = tokens.typography.meta.copy(
+                                fontSize = 10.sp,
+                                color = tokens.colors.seal,
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpenExportLink(ex.downloadUrl) },
+                        )
                     }
                 }
             }
 
             if (state.tab == HomeTab.Inbox || state.tab == HomeTab.Outbox) {
+                val tokens = LuvtterTheme.tokens
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FilterChip(
+                    com.luvtter.app.ui.common.PaperChip(
+                        label = if (state.showHidden) "查 看 已 隐 藏" else "正 常 视 图",
                         selected = state.showHidden,
                         onClick = onToggleShowHidden,
-                        label = { Text(if (state.showHidden) "查看已隐藏" else "正常视图") },
                     )
                     Spacer(Modifier.weight(1f))
                     if (state.showHidden) {
-                        Text("已隐藏的信件仍存在于对方的箱子中", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            "已隐藏的信件仍存在于对方的箱子中",
+                            style = tokens.typography.meta.copy(
+                                fontSize = 10.sp,
+                                color = tokens.colors.inkFaded,
+                            ),
+                        )
                     }
                 }
             }
@@ -258,28 +296,75 @@ private fun HomeContent(
                 )
             }
             if (state.loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                val tokens = LuvtterTheme.tokens
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(2.dp),
+                    color = tokens.colors.seal,
+                    trackColor = tokens.colors.ruleSoft,
+                )
             }
             state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(24.dp))
+                val tokens = LuvtterTheme.tokens
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 32.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .height(12.dp)
+                            .width(2.dp)
+                            .background(tokens.colors.seal),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        it,
+                        style = tokens.typography.meta.copy(fontSize = 11.sp, color = tokens.colors.seal),
+                    )
+                }
             }
             state.reward?.let {
-                Surface(color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
-                    Text(it, modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.bodySmall)
+                val tokens = LuvtterTheme.tokens
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(tokens.colors.paperRaised)
+                        .padding(horizontal = 32.dp, vertical = 14.dp),
+                ) {
+                    Text(
+                        it,
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontFamily = tokens.fonts.serifZh,
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp,
+                            color = tokens.colors.inkSoft,
+                            letterSpacing = 0.4.sp,
+                        ),
+                    )
                 }
             }
             if (!state.loading && state.letters.isEmpty()) {
+                val tokens = LuvtterTheme.tokens
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     val hint = when {
-                        state.tab == HomeTab.Favorites -> "还没有收藏的信件"
-                        state.tab == HomeTab.Folders && state.folders.isEmpty() -> "还没有分类，先创建一个"
-                        state.tab == HomeTab.Folders && state.selectedFolderId == null -> "选择一个分类查看信件"
-                        state.tab == HomeTab.Folders -> "该分类暂无信件"
-                        state.showHidden -> "没有已隐藏的信件"
-                        state.tab == HomeTab.Inbox && currentAddress != null -> "「${currentAddress.label}」当前没有信件"
-                        else -> "还没有信件"
+                        state.tab == HomeTab.Favorites -> "尚无折角的信件"
+                        state.tab == HomeTab.Folders && state.folders.isEmpty() -> "尚无卷宗,先立一卷"
+                        state.tab == HomeTab.Folders && state.selectedFolderId == null -> "选一个卷宗,展信"
+                        state.tab == HomeTab.Folders -> "此卷尚空"
+                        state.showHidden -> "无已隐藏的信件"
+                        state.tab == HomeTab.Inbox && currentAddress != null -> "「${currentAddress.label}」当前空空如也"
+                        else -> "尚无信件"
                     }
-                    Text(hint, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        hint,
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontFamily = tokens.fonts.serifZh,
+                            fontSize = 14.sp,
+                            color = tokens.colors.inkGhost,
+                            letterSpacing = 0.6.sp,
+                        ),
+                    )
                 }
             } else if (state.tab == HomeTab.Inbox && !state.showHidden) {
                 InboxStack(
@@ -294,7 +379,31 @@ private fun HomeContent(
                     onOpen = onOpenLetter,
                     modifier = Modifier.fillMaxSize(),
                 )
+            } else if (state.tab == HomeTab.Drafts && !state.showHidden) {
+                DraftsList(
+                    letters = state.letters,
+                    onEdit = onEditDraft,
+                    onDelete = onDeleteDraft,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (state.tab == HomeTab.Favorites && !state.showHidden) {
+                FavoritesList(
+                    letters = state.letters,
+                    isLetterMine = isLetterMine,
+                    onOpen = onOpenLetter,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (state.tab == HomeTab.Folders && !state.showHidden) {
+                val folderName = state.folders.firstOrNull { it.id == state.selectedFolderId }?.name
+                FolderShelf(
+                    folderName = folderName,
+                    letters = state.letters,
+                    isLetterMine = isLetterMine,
+                    onOpen = onOpenLetter,
+                    modifier = Modifier.fillMaxSize(),
+                )
             } else {
+                // 已隐藏视图:沿用紧凑列表
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(state.letters, key = { it.id }) { l ->
                         val mine = isLetterMine(l)
@@ -368,7 +477,7 @@ private fun HomeHeader(
     val meta = when (tab) {
         HomeTab.Inbox -> "已收 $lettersCount 封 · 未拆 $unread"
         HomeTab.Outbox -> "在途与既往 $lettersCount 封 · 邮差风雪兼程"
-        HomeTab.Drafts -> "${lettersCount} 封未寄出"
+        HomeTab.Drafts -> "$lettersCount 封未寄出"
         HomeTab.Favorites -> "$lettersCount 封被你折角"
         HomeTab.Folders -> "$lettersCount 封分门别类"
     }
@@ -445,7 +554,6 @@ private fun SearchDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchDialogContent(
     state: SearchUiState,
@@ -454,47 +562,69 @@ private fun SearchDialogContent(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit
 ) {
-    AlertDialog(
+    val tokens = LuvtterTheme.tokens
+    PaperDialog(
         onDismissRequest = onDismiss,
-        title = { Text("搜索信件") },
-        text = {
-            Column(modifier = Modifier.heightIn(max = 420.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
+        title = "搜 · 寻 · 信 · 件",
+        subtitle = "SEARCH · 关键词 / 寄件人 / 收件人",
+        actions = { PaperGhostButton(label = "关 闭", onClick = onDismiss) },
+    ) {
+        Column(modifier = Modifier.heightIn(max = 460.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Box(modifier = Modifier.weight(1f)) {
+                    PaperInput(
                         value = state.query,
                         onValueChange = onQueryChange,
-                        label = { Text("关键词") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        placeholder = "落笔何时何字…",
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        enabled = !state.busy && state.query.isNotBlank(),
-                        onClick = onSearch
-                    ) { Text(if (state.busy) "搜索中" else "搜索") }
                 }
-                state.error?.let { Spacer(Modifier.height(6.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
-                Spacer(Modifier.height(8.dp))
-                if (state.results.isEmpty() && !state.busy && state.query.isNotBlank() && state.error == null) {
-                    Text("无匹配", style = MaterialTheme.typography.bodySmall)
-                }
-                LazyColumn {
-                    items(state.results, key = { it.id }) { l ->
-                        ListItem(
-                            headlineContent = {
-                                val who = "${l.sender?.displayName ?: "—"} → ${l.recipient?.displayName ?: "—"}"
-                                Text(who)
-                            },
-                            supportingContent = { l.preview?.let { Text(it, maxLines = 2) } },
-                            modifier = Modifier.clickable { onOpen(l.id) }
-                        )
-                        HorizontalDivider()
+                Spacer(Modifier.width(12.dp))
+                PaperPrimaryButton(
+                    label = if (state.busy) "搜 寻 中" else "搜 寻",
+                    onClick = onSearch,
+                    enabled = !state.busy && state.query.isNotBlank(),
+                )
+            }
+            state.error?.let { PaperStatusBar(it) }
+            Spacer(Modifier.height(8.dp))
+            if (state.results.isEmpty() && !state.busy && state.query.isNotBlank() && state.error == null) {
+                Text(
+                    "无匹配。",
+                    style = tokens.typography.meta.copy(fontSize = 11.sp, color = tokens.colors.inkGhost),
+                )
+            }
+            LazyColumn {
+                items(state.results, key = { it.id }) { l ->
+                    PaperListRow(onClick = { onOpen(l.id) }) {
+                        Column {
+                            Text(
+                                "${l.sender?.displayName ?: "—"} → ${l.recipient?.displayName ?: "—"}",
+                                style = androidx.compose.ui.text.TextStyle(
+                                    fontFamily = tokens.fonts.serifZh,
+                                    fontSize = 14.sp,
+                                    color = tokens.colors.ink,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.4.sp,
+                                ),
+                            )
+                            l.preview?.takeIf { it.isNotBlank() }?.let {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    it,
+                                    maxLines = 2,
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        fontFamily = tokens.fonts.serifZh,
+                                        fontSize = 12.sp,
+                                        color = tokens.colors.inkSoft,
+                                    ),
+                                )
+                            }
+                        }
                     }
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -526,23 +656,31 @@ private fun FolderBar(
         }
     }
     if (showNew) {
-        AlertDialog(
+        PaperDialog(
             onDismissRequest = { showNew = false; name = "" },
-            title = { Text("新建分类") },
-            text = {
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it.trim() },
-                    label = { Text("名称") }, singleLine = true
+            title = "新 · 立 · 卷 · 宗",
+            subtitle = "NEW FOLDER · 用一个名字归一类信件",
+            actions = {
+                PaperGhostButton(
+                    label = "取 消",
+                    onClick = { showNew = false; name = "" },
+                )
+                PaperPrimaryButton(
+                    label = "立 · 卷",
+                    enabled = name.isNotBlank(),
+                    onClick = { onCreate(name); name = ""; showNew = false },
                 )
             },
-            confirmButton = {
-                TextButton(
-                    enabled = name.isNotBlank(),
-                    onClick = { onCreate(name); name = ""; showNew = false }
-                ) { Text("创建") }
-            },
-            dismissButton = { TextButton(onClick = { showNew = false; name = "" }) { Text("取消") } }
-        )
+        ) {
+            Column {
+                PaperFieldLabel("名 称")
+                PaperInput(
+                    value = name,
+                    onValueChange = { name = it.trim() },
+                    placeholder = "如:旧友 / 工作 / 致未来的我",
+                )
+            }
+        }
     }
 }
 
@@ -556,54 +694,88 @@ private fun LetterRow(
     onUnhide: (() -> Unit)? = null,
     onDeleteDraft: (() -> Unit)? = null
 ) {
+    val tokens = LuvtterTheme.tokens
     Column(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp)
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 32.dp, vertical = 14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val who = if (mine) (l.recipient?.displayName ?: "未知收件人") else (l.sender?.displayName ?: "未知寄件人")
-            Text(who, style = MaterialTheme.typography.titleMedium)
+            Text(
+                who,
+                style = androidx.compose.ui.text.TextStyle(
+                    fontFamily = tokens.fonts.serifZh,
+                    fontSize = 15.sp,
+                    color = tokens.colors.ink,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.4.sp,
+                ),
+            )
             if (l.isFavorite) {
                 Spacer(Modifier.width(6.dp))
-                Text("★", style = MaterialTheme.typography.titleMedium)
+                Text("★", style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = tokens.colors.seal))
             }
             Spacer(Modifier.weight(1f))
-            AssistChip(onClick = {}, label = { Text(statusLabel(l.status, l.transitStage)) })
+            Text(
+                statusLabel(l.status, l.transitStage),
+                style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
+            )
         }
         l.recipientAddressLabel?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(2.dp))
             Text(
-                if (mine) "→ 寄到「$it」" else "→ 收件地址：$it",
-                style = MaterialTheme.typography.labelSmall
+                if (mine) "→ 寄到「$it」" else "→ 收件地址 · $it",
+                style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
             )
         }
         l.preview?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(4.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+            Text(
+                it,
+                maxLines = 2,
+                style = androidx.compose.ui.text.TextStyle(
+                    fontFamily = tokens.fonts.serifZh,
+                    fontSize = 12.sp,
+                    color = tokens.colors.inkSoft,
+                ),
+            )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         val time = l.deliveredAt ?: l.deliveryAt ?: l.sentAt
         Row(verticalAlignment = Alignment.CenterVertically) {
             time?.let {
-                Text(formatLocalDateTime(it) ?: it, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    formatLocalDateTime(it) ?: it,
+                    style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkGhost),
+                )
             }
             if (l.photoCount > 0 || l.stickerCount > 0) {
                 Spacer(Modifier.weight(1f))
                 if (l.photoCount > 0) {
-                    Text("📷 ${l.photoCount}", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        "📷 ${l.photoCount}",
+                        style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
+                    )
                 }
                 if (l.photoCount > 0 && l.stickerCount > 0) Spacer(Modifier.width(8.dp))
                 if (l.stickerCount > 0) {
-                    Text("🏷 ${l.stickerCount}", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        "🏷 ${l.stickerCount}",
+                        style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
+                    )
                 }
             }
         }
         if (onExpedite != null || onHide != null || onUnhide != null || onDeleteDraft != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(Modifier.weight(1f))
-                if (onExpedite != null) TextButton(onClick = onExpedite) { Text("加速到达") }
-                if (onHide != null) TextButton(onClick = onHide) { Text("隐藏") }
-                if (onUnhide != null) TextButton(onClick = onUnhide) { Text("恢复") }
-                if (onDeleteDraft != null) TextButton(onClick = onDeleteDraft) { Text("删除草稿") }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (onExpedite != null) PaperGhostButton(label = "加 速 到 达", onClick = onExpedite)
+                if (onHide != null) PaperGhostButton(label = "隐 藏", onClick = onHide)
+                if (onUnhide != null) PaperGhostButton(label = "恢 复", onClick = onUnhide)
+                if (onDeleteDraft != null) PaperGhostButton(label = "删 除 草 稿", onClick = onDeleteDraft, danger = true)
             }
         }
     }
@@ -631,34 +803,76 @@ private fun NotificationsDialog(
     onMarkAllRead: () -> Unit,
     onSwitchToAddress: (String) -> Unit
 ) {
-    AlertDialog(
+    val tokens = LuvtterTheme.tokens
+    PaperDialog(
         onDismissRequest = onDismiss,
-        title = { Text("通知") },
-        text = {
-            if (notifications.isEmpty()) {
-                Text("暂无通知")
-            } else {
-                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                    items(notifications, key = { it.id }) { n ->
-                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                            Text(n.title, style = MaterialTheme.typography.bodyMedium)
-                            n.preview?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+        title = "驿 · 报",
+        subtitle = "NOTIFICATIONS · 来自邮局的近况",
+        actions = {
+            if (notifications.isNotEmpty()) {
+                PaperGhostButton(label = "全 部 已 读", onClick = onMarkAllRead)
+            }
+            PaperGhostButton(label = "关 闭", onClick = onDismiss)
+        },
+    ) {
+        if (notifications.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    "暂 无 驿 报。",
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontFamily = tokens.fonts.serifZh,
+                        fontSize = 13.sp,
+                        color = tokens.colors.inkGhost,
+                        letterSpacing = 0.6.sp,
+                    ),
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
+                items(notifications, key = { it.id }) { n ->
+                    PaperListRow {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                n.title,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    fontFamily = tokens.fonts.serifZh,
+                                    fontSize = 14.sp,
+                                    color = tokens.colors.ink,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.4.sp,
+                                ),
+                            )
+                            n.preview?.takeIf { it.isNotBlank() }?.let {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    it,
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        fontFamily = tokens.fonts.serifZh,
+                                        fontSize = 12.sp,
+                                        color = tokens.colors.inkSoft,
+                                    ),
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(formatLocalDateTime(n.createdAt) ?: n.createdAt, style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    formatLocalDateTime(n.createdAt) ?: n.createdAt,
+                                    style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
+                                )
                                 Spacer(Modifier.weight(1f))
                                 if (n.addressId != null) {
-                                    TextButton(onClick = { onSwitchToAddress(n.addressId!!) }) { Text("切到 ${n.addressLabel ?: "该地址"}") }
+                                    PaperGhostButton(
+                                        label = "切 至 ${n.addressLabel ?: "该地址"}",
+                                        onClick = { onSwitchToAddress(n.addressId!!) },
+                                    )
                                 }
                             }
-                            HorizontalDivider()
                         }
                     }
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = onMarkAllRead) { Text("全部已读") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
-    )
+        }
+    }
 }
 
 @Composable
@@ -666,24 +880,51 @@ private fun FirstLetterPromptCard(
     onStart: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text("给未来的自己,寄第一封信", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "信会按你选的邮票慢慢上路,几小时到几天后送达。先写一句话给未来打个招呼?",
-                style = MaterialTheme.typography.bodySmall
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text("暂不") }
-                Spacer(Modifier.width(4.dp))
-                FilledTonalButton(onClick = onStart) { Text("现在写") }
+    val tokens = LuvtterTheme.tokens
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 12.dp)
+            .background(tokens.colors.paperRaised)
+            .drawBehind {
+                drawLine(
+                    color = tokens.colors.seal,
+                    start = Offset(0f, 0f),
+                    end = Offset(0f, size.height),
+                    strokeWidth = 2f,
+                )
             }
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+    ) {
+        Text(
+            "给 · 未 · 来 · 的 · 自 · 己,寄 第 一 封 信",
+            style = androidx.compose.ui.text.TextStyle(
+                fontFamily = tokens.fonts.serifZh,
+                fontSize = 15.sp,
+                color = tokens.colors.ink,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.6.sp,
+            ),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "信会按你选的邮票慢慢上路,几小时到几天后送达。先写一句话给未来打个招呼?",
+            style = androidx.compose.ui.text.TextStyle(
+                fontFamily = tokens.fonts.serifZh,
+                fontSize = 12.sp,
+                lineHeight = 19.sp,
+                color = tokens.colors.inkSoft,
+                letterSpacing = 0.3.sp,
+            ),
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            PaperGhostButton(label = "暂 · 不", onClick = onDismiss)
+            PaperPrimaryButton(label = "现 · 在 · 写", onClick = onStart)
         }
     }
 }
@@ -695,27 +936,59 @@ private fun SwitchLocationDialog(
     onDismiss: () -> Unit,
     onPick: (String) -> Unit
 ) {
-    AlertDialog(
+    val tokens = LuvtterTheme.tokens
+    PaperDialog(
         onDismissRequest = onDismiss,
-        title = { Text("切换当前位置") },
-        text = {
-            if (addresses.isEmpty()) {
-                Text("还没有地址，请先到「址」管理。")
-            } else {
-                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                    items(addresses, key = { it.id }) { a ->
-                        ListItem(
-                            headlineContent = { Text(a.label) },
-                            supportingContent = { Text(a.type + if (a.id == currentId) " · 当前" else "") },
-                            modifier = Modifier.clickable { onPick(a.id) }
-                        )
-                        HorizontalDivider()
+        title = "迁 · 此 · 一 · 址",
+        subtitle = "SWITCH LOCATION · 当前所在",
+        actions = { PaperGhostButton(label = "关 闭", onClick = onDismiss) },
+    ) {
+        if (addresses.isEmpty()) {
+            Text(
+                "还没有地址,请先到「地 址」管理。",
+                style = androidx.compose.ui.text.TextStyle(
+                    fontFamily = tokens.fonts.serifZh,
+                    fontSize = 13.sp,
+                    color = tokens.colors.inkSoft,
+                    letterSpacing = 0.4.sp,
+                ),
+            )
+        } else {
+            LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                items(addresses, key = { it.id }) { a ->
+                    PaperListRow(onClick = { onPick(a.id) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        a.label,
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            fontFamily = tokens.fonts.serifZh,
+                                            fontSize = 14.sp,
+                                            color = tokens.colors.ink,
+                                            fontWeight = FontWeight.Medium,
+                                            letterSpacing = 0.4.sp,
+                                        ),
+                                    )
+                                    if (a.id == currentId) {
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            "当 前",
+                                            style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.seal),
+                                        )
+                                    }
+                                }
+                                Text(
+                                    a.type,
+                                    style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
+                                )
+                            }
+                        }
                     }
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
-    )
+        }
+    }
 }
 
 @Composable
@@ -723,27 +996,18 @@ private fun FinalizeHandleDialog(
     onDismiss: () -> Unit,
     onSubmit: (input: String, onError: (String) -> Unit) -> Unit
 ) {
+    val tokens = LuvtterTheme.tokens
     var input by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
-    AlertDialog(
+    PaperDialog(
         onDismissRequest = onDismiss,
-        title = { Text("设置专属 handle") },
-        text = {
-            Column {
-                Text("3-20 字符，中英文/数字/下划线。一旦确定不可再改。", style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it.trim() },
-                    label = { Text("handle") },
-                    singleLine = true
-                )
-                status?.let { Spacer(Modifier.height(6.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
-            }
-        },
-        confirmButton = {
-            TextButton(
+        title = "立 · 此 · 一 · 名",
+        subtitle = "HANDLE · 一旦确定不可再改",
+        actions = {
+            PaperGhostButton(label = "取 消", onClick = onDismiss)
+            PaperPrimaryButton(
+                label = if (loading) "提 交 中" else "立 · 名",
                 enabled = !loading && input.isNotBlank(),
                 onClick = {
                     loading = true; status = null
@@ -751,9 +1015,23 @@ private fun FinalizeHandleDialog(
                         status = err
                         loading = false
                     }
-                }
-            ) { Text(if (loading) "提交中..." else "确认") }
+                },
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
-    )
+    ) {
+        Column {
+            Text(
+                "3–20 字符,中英文 / 数字 / 下划线。",
+                style = tokens.typography.meta.copy(fontSize = 11.sp, color = tokens.colors.inkFaded),
+            )
+            Spacer(Modifier.height(14.dp))
+            PaperFieldLabel("HANDLE")
+            PaperInput(
+                value = input,
+                onValueChange = { input = it.trim() },
+                placeholder = "@yourname",
+            )
+            status?.let { PaperStatusBar(it) }
+        }
+    }
 }

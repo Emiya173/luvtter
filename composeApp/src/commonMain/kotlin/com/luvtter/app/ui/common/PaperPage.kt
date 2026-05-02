@@ -3,23 +3,10 @@ package com.luvtter.app.ui.common
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -29,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -198,7 +184,10 @@ fun PaperInput(
     }
 }
 
-/** 主行动按钮:seal 红 + paperRaised 字。 */
+// 两种按钮共享的内置高度,保证主/次按钮并排时文字基线对齐
+private val PaperButtonMinHeight = 40.dp
+
+/** 主行动按钮:seal 红 + paperRaised 字,文字始终居中。 */
 @Composable
 fun PaperPrimaryButton(
     label: String,
@@ -207,18 +196,15 @@ fun PaperPrimaryButton(
     enabled: Boolean = true,
 ) {
     val tokens = LuvtterTheme.tokens
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(2.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = tokens.colors.seal,
-            contentColor = tokens.colors.paperRaised,
-            disabledContainerColor = tokens.colors.seal.copy(alpha = 0.5f),
-            disabledContentColor = tokens.colors.paperRaised.copy(alpha = 0.7f),
-        ),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        modifier = modifier.heightIn(min = 48.dp),
+    val color = if (enabled) tokens.colors.seal else tokens.colors.seal.copy(alpha = 0.5f)
+    val fg = if (enabled) tokens.colors.paperRaised else tokens.colors.paperRaised.copy(alpha = 0.75f)
+    Box(
+        modifier = modifier
+            .heightIn(min = PaperButtonMinHeight)
+            .background(color, RoundedCornerShape(2.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
@@ -226,15 +212,16 @@ fun PaperPrimaryButton(
             style = TextStyle(
                 fontFamily = tokens.fonts.serifZh,
                 fontSize = 14.sp,
-                lineHeight = 20.sp,
+                lineHeight = 18.sp,
                 fontWeight = FontWeight.Medium,
+                color = fg,
                 letterSpacing = 0.8.sp,
             ),
         )
     }
 }
 
-/** 描线方框次要按钮(取消/删除等)。color=seal 时表示破坏性。 */
+/** 描线方框次要按钮(取消/删除等)。danger=true 时改 seal 红描边。 */
 @Composable
 fun PaperGhostButton(
     label: String,
@@ -250,15 +237,19 @@ fun PaperGhostButton(
     }
     Box(
         modifier = Modifier
+            .heightIn(min = PaperButtonMinHeight)
             .border(0.5.dp, color, RoundedCornerShape(2.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
+            maxLines = 1,
             style = TextStyle(
                 fontFamily = tokens.fonts.serifZh,
                 fontSize = 13.sp,
+                lineHeight = 18.sp,
                 color = color,
                 letterSpacing = 0.4.sp,
             ),

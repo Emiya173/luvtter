@@ -32,12 +32,11 @@ fun Stamp(
 ) {
     val tokens = LuvtterTheme.tokens
     val measurer = rememberTextMeasurer()
-    val w = size
     val h = size * 1.25f
     val wDp = size.value
     val hDp = wDp * 1.25f
 
-    Canvas(modifier = modifier.size(w, h)) {
+    Canvas(modifier = modifier.size(size, h)) {
         val pxW = this.size.width
         val pxH = this.size.height
         // 票身底色 —— 取 accent 与 paper 之间的浅版

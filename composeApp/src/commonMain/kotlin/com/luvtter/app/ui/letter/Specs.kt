@@ -39,13 +39,31 @@ data class StationerySpec(
 )
 
 object Stationery {
-    val cream = StationerySpec("cream", "奶白", Color(0xFFFAF6EC), StationeryRule.None)
-    val lined = StationerySpec("lined", "横格", Color(0xFFF6F1E3), StationeryRule.Lines)
-    val grid = StationerySpec("grid", "方格", Color(0xFFF4EFE1), StationeryRule.Grid)
+    // 与 server V3__seed_catalog.sql 的 code 对齐:classic / linen / kraft
+    // 同时保留旧名(cream/lined/grid/ruled)作为别名,方便组件直接引用
+    val classic = StationerySpec("classic", "经典素白", Color(0xFFFAF6EC), StationeryRule.None)
+    val linen = StationerySpec("linen", "亚麻横格", Color(0xFFF1EAD4), StationeryRule.Lines)
+    val kraft = StationerySpec("kraft", "牛皮方格", Color(0xFFE8D9B3), StationeryRule.Grid)
+    // 备用稿纸视觉(竖格)。当前服务端无 ruled 种子,但 byId 可识别。
     val ruled = StationerySpec("ruled", "稿纸", Color(0xFFF5ECE0), StationeryRule.Tatebun)
 
-    val all = listOf(cream, lined, grid, ruled)
-    fun byId(id: String): StationerySpec = all.firstOrNull { it.id == id } ?: cream
+    // 旧别名,保留兼容性
+    val cream = classic
+    val lined = linen
+    val grid = kraft
+
+    val all = listOf(classic, linen, kraft, ruled)
+
+    /** 兼容旧 code:cream → classic / lined → linen / grid → kraft。 */
+    private fun normalize(id: String): String = when (id) {
+        "cream" -> "classic"
+        "lined" -> "linen"
+        "grid" -> "kraft"
+        else -> id
+    }
+
+    fun byId(id: String): StationerySpec =
+        all.firstOrNull { it.id == normalize(id) } ?: classic
 }
 
 @Immutable

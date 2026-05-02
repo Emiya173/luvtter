@@ -87,7 +87,7 @@ class ComposeViewModel(
         val detail = letters.getDraft(id)
         val s = detail.summary
         val loaded = detail.body?.segments.orEmpty()
-        val segs = if (loaded.isNotEmpty()) loaded else listOf(TextSegment(""))
+        val segs = loaded.ifEmpty { listOf(TextSegment("")) }
         val totalLen = segs.sumOf { it.text.length }
         _state.update { prev ->
             prev.copy(

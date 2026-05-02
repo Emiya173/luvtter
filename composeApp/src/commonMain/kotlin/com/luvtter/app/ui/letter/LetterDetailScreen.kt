@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.luvtter.app.theme.LuvtterTheme
+import com.luvtter.app.ui.common.PaperDialog
+import com.luvtter.app.ui.common.PaperGhostButton
+import com.luvtter.app.ui.common.PaperListRow
 import com.luvtter.app.ui.common.formatLocalDate
 import com.luvtter.app.ui.common.formatLocalDateTime
 import com.luvtter.contract.dto.AttachmentDto
@@ -127,23 +130,52 @@ private fun LetterDetailContent(
     }
 
     if (showFolderPicker) {
-        AlertDialog(
+        val tokens = LuvtterTheme.tokens
+        PaperDialog(
             onDismissRequest = onDismissFolderPicker,
-            title = { Text("移到分类") },
-            text = {
-                Column {
-                    if (state.folders.isEmpty()) {
-                        Text("还没有分类，请先到「分类」标签创建。", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        TextButton(onClick = { onAssignFolder(null) }) { Text("（移除分类）") }
-                        state.folders.forEach { f ->
-                            TextButton(onClick = { onAssignFolder(f.id) }) { Text(f.name) }
+            title = "归 · 入 · 卷 · 宗",
+            subtitle = "ASSIGN FOLDER",
+            actions = { PaperGhostButton(label = "关 闭", onClick = onDismissFolderPicker) },
+        ) {
+            if (state.folders.isEmpty()) {
+                Text(
+                    "还没有卷宗,请先到「分 类」标签建一卷。",
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontFamily = tokens.fonts.serifZh,
+                        fontSize = 13.sp,
+                        color = tokens.colors.inkSoft,
+                    ),
+                )
+            } else {
+                Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                    PaperListRow(onClick = { onAssignFolder(null) }) {
+                        Text(
+                            "— 移 出 卷 宗 —",
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontFamily = tokens.fonts.serifZh,
+                                fontSize = 14.sp,
+                                color = tokens.colors.seal,
+                                letterSpacing = 0.5.sp,
+                            ),
+                        )
+                    }
+                    state.folders.forEach { f ->
+                        PaperListRow(onClick = { onAssignFolder(f.id) }) {
+                            Text(
+                                f.name,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    fontFamily = tokens.fonts.serifZh,
+                                    fontSize = 14.sp,
+                                    color = tokens.colors.ink,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.4.sp,
+                                ),
+                            )
                         }
                     }
                 }
-            },
-            confirmButton = { TextButton(onClick = onDismissFolderPicker) { Text("关闭") } }
-        )
+            }
+        }
     }
 }
 
@@ -192,9 +224,9 @@ private fun LetterPaper(detail: LetterDetailDto, stickers: List<StickerDto>) {
         ReadingHeader(
             recipientName = s.recipient?.displayName ?: "—",
             recipientAddressLabel = s.recipientAddressLabel,
-            senderName = s.sender?.displayName ?: "—",
+            senderAddressLabel = s.senderAddressLabel,
             sentAt = formatLocalDate(s.sentAt) ?: "—",
-            postmarkCity = s.recipient?.displayName?.take(2) ?: "上海",
+            postmarkCity = s.recipient?.displayName?.take(2) ?: "",
             postmarkDate = formatLocalDate(s.sentAt) ?: "—",
         )
 
@@ -220,7 +252,7 @@ private fun LetterPaper(detail: LetterDetailDto, stickers: List<StickerDto>) {
 private fun ReadingHeader(
     recipientName: String,
     recipientAddressLabel: String?,
-    senderName: String,
+    senderAddressLabel: String?,
     sentAt: String,
     postmarkCity: String,
     postmarkDate: String,
@@ -229,7 +261,7 @@ private fun ReadingHeader(
     Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "致 · ${recipientAddressLabel?.takeIf { it.isNotBlank() } ?: "上海"}",
+                "致 · ${recipientAddressLabel?.takeIf { it.isNotBlank() } ?: ""}",
                 style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
             )
             Spacer(Modifier.height(6.dp))
@@ -243,7 +275,7 @@ private fun ReadingHeader(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                "自 · $senderName   ✕   $sentAt",
+                "自 · ${senderAddressLabel?.takeIf { it.isNotBlank() } ?: ""}   ✕   $sentAt",
                 style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
             )
         }
@@ -318,7 +350,7 @@ private fun DividerSoft() {
     )
 }
 
-private fun Modifier.stationeryRules(rule: StationeryRule, lineColor: Color): Modifier =
+internal fun Modifier.stationeryRules(rule: StationeryRule, lineColor: Color): Modifier =
     this.drawBehind {
         when (rule) {
             StationeryRule.Lines -> {

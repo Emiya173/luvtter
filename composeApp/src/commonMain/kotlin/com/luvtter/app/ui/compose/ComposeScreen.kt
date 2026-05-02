@@ -1,35 +1,21 @@
 package com.luvtter.app.ui.compose
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.OffsetMapping
@@ -37,20 +23,13 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.luvtter.app.theme.LuvtterTheme
-import com.luvtter.app.ui.common.formatLocalDateTime
-import com.luvtter.app.ui.letter.Postmark
-import com.luvtter.app.ui.letter.Stamp
-import com.luvtter.app.ui.letter.StampSpec
-import com.luvtter.app.ui.letter.Stamps
-import com.luvtter.app.ui.letter.Stationery
-import com.luvtter.app.ui.letter.StationeryRule
-import com.luvtter.app.ui.letter.StationerySpec
+import com.luvtter.app.ui.common.*
+import com.luvtter.app.ui.letter.*
 import com.luvtter.contract.dto.StationeryDto
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -385,7 +364,7 @@ private fun ToFromHeader(
                 )
             }
             Spacer(Modifier.height(6.dp))
-            val senderLabel = state.senderAddresses.firstOrNull { it.id == state.senderAddressId }?.label ?: "上海"
+            val senderLabel = state.senderAddresses.firstOrNull { it.id == state.senderAddressId }?.label ?: ""
             Text(
                 "自 · $senderLabel · 今日",
                 style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
@@ -451,7 +430,7 @@ private fun ToFromHeader(
             }
         }
         Postmark(
-            city = state.recipientName?.take(2) ?: "上海",
+            city = state.recipientName?.take(2) ?: "远方",
             date = "今日",
             size = 66.dp,
             rotateDeg = 3f,
@@ -665,34 +644,41 @@ private fun StationeryGrid(
     onSelect: (String?) -> Unit,
 ) {
     val tokens = LuvtterTheme.tokens
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { item ->
                     val sel = selectedId == item.id
                     val spec = Stationery.byId(item.code)
-                    Box(
+                    Column(
                         modifier = Modifier
                             .weight(1f)
-                            .height(54.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(spec.tint)
-                            .stationeryRulesCompose(spec.rule, tokens.colors.inkFaded)
-                            .border(
-                                width = if (sel) 0.8.dp else 0.5.dp,
-                                color = if (sel) tokens.colors.ink else tokens.colors.paperEdge,
-                                shape = RoundedCornerShape(2.dp),
-                            )
-                            .clickable { onSelect(if (sel) null else item.id) }
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.BottomCenter,
+                            .clickable { onSelect(if (sel) null else item.id) },
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(spec.tint)
+                                .stationeryRulesCompose(spec.rule, tokens.colors.inkFaded)
+                                .border(
+                                    width = 0.5.dp,
+                                    color = if (sel) tokens.colors.ink else tokens.colors.paperEdge,
+                                    shape = RoundedCornerShape(2.dp),
+                                ),
+                        )
+                        Spacer(Modifier.height(6.dp))
                         Text(
                             item.name,
-                            style = tokens.typography.body.copy(
+                            maxLines = 1,
+                            style = tokens.typography.meta.copy(
                                 fontSize = 11.sp,
-                                color = tokens.colors.inkSoft,
-                                letterSpacing = 0.44.sp,
+                                lineHeight = 16.sp,
+                                color = if (sel) tokens.colors.ink else tokens.colors.inkFaded,
+                                fontWeight = if (sel) FontWeight.Medium else FontWeight.Normal,
+                                letterSpacing = 0.4.sp,
                             ),
                         )
                     }
@@ -1035,46 +1021,45 @@ private fun ScanEditorSection(
 private fun SealDraftDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var minutes by remember { mutableStateOf("60") }
     val presets = listOf(5 to "5 分钟", 60 to "1 小时", 60 * 24 to "1 天", 60 * 24 * 7 to "7 天")
-    AlertDialog(
+    PaperDialog(
         onDismissRequest = onDismiss,
-        title = { Text("封存至未来") },
-        text = {
-            Column {
-                Text("封存期间草稿不可编辑/寄出。", style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    presets.forEach { (m, label) ->
-                        val sel = minutes == m.toString()
-                        OutlinedButton(
-                            onClick = { minutes = m.toString() },
-                            shape = RoundedCornerShape(2.dp),
-                            colors = if (sel) ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant) else ButtonDefaults.outlinedButtonColors(),
-                        ) {
-                            Text(label, style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = minutes,
-                    onValueChange = { minutes = it.filter { c -> c.isDigit() } },
-                    label = { Text("分钟") },
-                    singleLine = true,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
+        title = "封 · 存 · 至 · 未 · 来",
+        subtitle = "SEAL · 期间不可编辑/寄出",
+        actions = {
+            PaperGhostButton(label = "取 消", onClick = onDismiss)
+            PaperPrimaryButton(
+                label = "封 · 存",
                 enabled = minutes.toIntOrNull()?.let { it > 0 } == true,
                 onClick = {
                     val m = minutes.toInt()
                     val target = kotlin.time.Clock.System.now().plus(kotlin.time.Duration.parse("${m}m"))
                     onConfirm(target.toString())
                 },
-            ) { Text("封存") }
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-    )
+    ) {
+        Column {
+            PaperFieldLabel("常 用 时 长")
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                presets.forEach { (m, label) ->
+                    PaperChip(
+                        label = label,
+                        selected = minutes == m.toString(),
+                        onClick = { minutes = m.toString() },
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            PaperFieldLabel("自 定 义（分 钟）")
+            PaperInput(
+                value = minutes,
+                onValueChange = { minutes = it.filter { c -> c.isDigit() } },
+                placeholder = "60",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+            )
+        }
+    }
 }
 
 @Composable
@@ -1083,25 +1068,48 @@ private fun StickerPickerDialog(
     onDismiss: () -> Unit,
     onPick: (String) -> Unit,
 ) {
-    AlertDialog(
+    val tokens = LuvtterTheme.tokens
+    PaperDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择贴纸") },
-        text = {
-            Column {
-                Text("贴纸会计入信件重量。", style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(6.dp))
-                Column {
-                    stickers.forEach { s ->
-                        TextButton(onClick = { onPick(s.id) }) {
-                            Text("${s.name} · ${s.weight}g")
+        title = "拣 · 一 · 枚 · 贴 · 纸",
+        subtitle = "STICKER · 会计入信件重量",
+        actions = { PaperGhostButton(label = "取 消", onClick = onDismiss) },
+    ) {
+        if (stickers.isEmpty()) {
+            Text(
+                "目前没有可用贴纸。",
+                style = TextStyle(
+                    fontFamily = tokens.fonts.serifZh,
+                    fontSize = 13.sp,
+                    color = tokens.colors.inkGhost,
+                ),
+            )
+        } else {
+            Column(modifier = Modifier.heightIn(max = 360.dp)) {
+                stickers.forEach { s ->
+                    PaperListRow(onClick = { onPick(s.id) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                s.name,
+                                modifier = Modifier.weight(1f),
+                                style = TextStyle(
+                                    fontFamily = tokens.fonts.serifZh,
+                                    fontSize = 14.sp,
+                                    color = tokens.colors.ink,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.4.sp,
+                                ),
+                            )
+                            Text(
+                                "${s.weight}g",
+                                style = tokens.typography.meta.copy(fontSize = 11.sp, color = tokens.colors.inkFaded),
+                            )
                         }
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-    )
+        }
+    }
 }
 
 private fun strikeMaskTransformation(mask: List<Boolean>, color: Color): VisualTransformation =
