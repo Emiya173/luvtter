@@ -282,17 +282,14 @@ private fun PaperCard(
             ScanEditorSection(state = state, onPickScan = onPickScan, onClearScan = onClearScan)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(
-                    checked = state.strikeOnDelete,
-                    onCheckedChange = { onToggleStrikeOnDelete() },
-                    modifier = Modifier.scale(0.75f),
+                PaperChip(
+                    label = if (state.strikeOnDelete)
+                        "涂 改 · 开 · ${state.strikeOnDeleteWindowMs / 1000}s"
+                    else "涂 改 · 关",
+                    selected = state.strikeOnDelete,
+                    onClick = { onToggleStrikeOnDelete() },
                 )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    if (state.strikeOnDelete) "涂改模式 · ${state.strikeOnDeleteWindowMs / 1000}s 外删字保留划痕" else "涂改模式关",
-                    style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded),
-                    modifier = Modifier.weight(1f),
-                )
+                Spacer(Modifier.weight(1f))
                 val hasSelection = !state.editorSelection.collapsed
                 if (hasSelection) {
                     TextButton(onClick = onStrikeSelection, contentPadding = PaddingValues(horizontal = 6.dp)) {
@@ -366,71 +363,45 @@ private fun ToFromHeader(
             Spacer(Modifier.height(6.dp))
             val senderLabel = state.senderAddresses.firstOrNull { it.id == state.senderAddressId }?.label ?: ""
             Text(
-                "自 · $senderLabel · 今日",
+                "自 · $senderLabel   ✕   今日",
                 style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
             )
             if (state.contacts.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                 ) {
                     state.contacts.take(6).forEach { c ->
-                        val sel = state.recipientHandle == c.target.handle
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(2.dp))
-                                .border(
-                                    width = 0.5.dp,
-                                    color = if (sel) tokens.colors.ink else tokens.colors.paperEdge,
-                                    shape = RoundedCornerShape(2.dp),
-                                )
-                                .clickable { onPickContact(c.target.handle) }
-                                .padding(horizontal = 6.dp, vertical = 3.dp),
-                        ) {
-                            Text(
-                                "@${c.target.handle}",
-                                style = tokens.typography.meta.copy(
-                                    fontSize = 9.sp,
-                                    color = if (sel) tokens.colors.ink else tokens.colors.inkFaded,
-                                ),
-                            )
-                        }
+                        PaperChip(
+                            label = "@${c.target.handle}",
+                            selected = state.recipientHandle == c.target.handle,
+                            onClick = { onPickContact(c.target.handle) },
+                        )
                     }
                 }
             }
             if (state.recipientAddresses.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
                     "寄到对方哪个地址",
                     style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
                 )
                 Spacer(Modifier.height(4.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column {
                     state.recipientAddresses.forEach { a ->
-                        val sel = state.recipientAddressId == a.id
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onRecipientAddressSelect(a.id) }
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                if (sel) "● " else "○ ",
-                                style = tokens.typography.meta.copy(fontSize = 10.sp, color = if (sel) tokens.colors.seal else tokens.colors.inkGhost),
-                            )
-                            Text(
-                                "${a.label} · ${a.type}" + if (a.isDefault) " · 默认" else "",
-                                style = tokens.typography.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
-                            )
-                        }
+                        AddressOptionRow(
+                            selected = state.recipientAddressId == a.id,
+                            primary = "${a.label} · ${a.type}",
+                            badge = if (a.isDefault) "默认" else null,
+                            onClick = { onRecipientAddressSelect(a.id) },
+                        )
                     }
                 }
             }
         }
         Postmark(
-            city = state.recipientName?.take(2) ?: "远方",
+            city = state.recipientName?.take(2) ?: "—",
             date = "今日",
             size = 66.dp,
             rotateDeg = 3f,
@@ -571,29 +542,14 @@ private fun Sidebar(
 
         if (state.senderAddresses.isNotEmpty()) {
             ToolSection("寄件地址") {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column {
                     state.senderAddresses.forEach { a ->
-                        val sel = state.senderAddressId == a.id
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSenderAddressSelect(a.id) }
-                                .padding(vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                if (sel) "●" else "○",
-                                style = tokens.typography.meta.copy(
-                                    fontSize = 10.sp,
-                                    color = if (sel) tokens.colors.seal else tokens.colors.inkGhost,
-                                ),
-                                modifier = Modifier.width(16.dp),
-                            )
-                            Text(
-                                "${a.label} · ${a.type}",
-                                style = tokens.typography.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
-                            )
-                        }
+                        AddressOptionRow(
+                            selected = state.senderAddressId == a.id,
+                            primary = "${a.label} · ${a.type}",
+                            badge = if (a.isDefault) "默认" else null,
+                            onClick = { onSenderAddressSelect(a.id) },
+                        )
                     }
                 }
             }
@@ -734,6 +690,57 @@ private fun FontList(
                     ),
                 )
             }
+        }
+    }
+}
+
+/** 寄件人/收件人地址单选项。视觉与 FontList 行对齐:左侧 1.5px seal 红短杠 + sealGlow 6% 底色作选中态。 */
+@Composable
+private fun AddressOptionRow(
+    selected: Boolean,
+    primary: String,
+    badge: String?,
+    onClick: () -> Unit,
+) {
+    val tokens = LuvtterTheme.tokens
+    val accent = if (selected) tokens.colors.seal else Color.Transparent
+    val bg = if (selected) tokens.colors.sealGlow.copy(alpha = 0.06f) else Color.Transparent
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(bg)
+            .drawBehind {
+                drawRect(
+                    color = accent,
+                    topLeft = Offset(0f, 0f),
+                    size = Size(1.5f, size.height),
+                )
+            }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            primary,
+            style = tokens.typography.body.copy(
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = if (selected) tokens.colors.ink else tokens.colors.inkSoft,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                letterSpacing = 0.4.sp,
+            ),
+            modifier = Modifier.weight(1f),
+        )
+        if (badge != null) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                badge,
+                style = tokens.typography.meta.copy(
+                    fontSize = 9.sp,
+                    color = tokens.colors.inkFaded,
+                    letterSpacing = 0.6.sp,
+                ),
+            )
         }
     }
 }
@@ -891,23 +898,16 @@ private fun AttachmentsBlock(
         }
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
+            PaperGhostButton(
+                label = "添 · 贴 · 纸",
                 enabled = !state.attachmentBusy && state.stickers.isNotEmpty(),
                 onClick = onShowStickerDialog,
-                shape = RoundedCornerShape(2.dp),
-            ) {
-                Text("添加贴纸", style = tokens.typography.meta.copy(fontSize = 11.sp))
-            }
-            OutlinedButton(
+            )
+            PaperGhostButton(
+                label = if (state.attachmentBusy) "处 理 中…" else "选 · 图 · 上 · 传",
                 enabled = !state.attachmentBusy,
                 onClick = onPickPhoto,
-                shape = RoundedCornerShape(2.dp),
-            ) {
-                Text(
-                    if (state.attachmentBusy) "处理中…" else "选图并上传",
-                    style = tokens.typography.meta.copy(fontSize = 11.sp),
-                )
-            }
+            )
         }
     }
 }
@@ -985,35 +985,32 @@ private fun ScanEditorSection(
             if (previewUrl != null && !isImage) {
                 val uri = LocalUriHandler.current
                 Spacer(Modifier.height(4.dp))
-                TextButton(onClick = { uri.openUri(previewUrl) }) {
-                    Text("在浏览器中打开 PDF")
-                }
+                PaperGhostButton(
+                    label = "在 浏 览 器 打 开 PDF",
+                    onClick = { uri.openUri(previewUrl) },
+                )
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(enabled = !state.scanUploading, onClick = onPickScan, shape = RoundedCornerShape(2.dp)) {
-                    Text(if (state.scanUploading) "处理中…" else "替换", style = tokens.typography.meta.copy(fontSize = 11.sp))
-                }
-                OutlinedButton(enabled = !state.scanUploading, onClick = onClearScan, shape = RoundedCornerShape(2.dp)) {
-                    Text("移除", style = tokens.typography.meta.copy(fontSize = 11.sp))
-                }
+                PaperGhostButton(
+                    label = if (state.scanUploading) "处 理 中…" else "替 · 换",
+                    enabled = !state.scanUploading,
+                    onClick = onPickScan,
+                )
+                PaperGhostButton(
+                    label = "移 · 除",
+                    enabled = !state.scanUploading,
+                    onClick = onClearScan,
+                    danger = true,
+                )
             }
         }
     } else {
-        Button(
+        PaperPrimaryButton(
+            label = if (state.scanUploading) "上 传 中…" else "选 择 扫 描 件 并 上 传",
             enabled = !state.scanUploading,
             onClick = onPickScan,
-            shape = RoundedCornerShape(2.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = tokens.colors.seal,
-                contentColor = tokens.colors.paperRaised,
-            ),
-        ) {
-            Text(
-                if (state.scanUploading) "上传中…" else "选择扫描件并上传",
-                style = tokens.typography.meta.copy(fontSize = 12.sp, letterSpacing = 1.sp),
-            )
-        }
+        )
     }
 }
 

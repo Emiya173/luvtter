@@ -79,4 +79,6 @@ class LetterDetailViewModel(
                 .onFailure { e -> _state.update { it.copy(error = e.message) } }
         }
     }
+
+    fun clearError() = _state.update { it.copy(error = null) }
 }

@@ -185,6 +185,10 @@ class HomeViewModel(
 
     fun clearError() = _state.update { it.copy(error = null) }
 
+    fun clearReward() = _state.update { it.copy(reward = null) }
+
+    fun clearLastExport() = _state.update { it.copy(lastExport = null) }
+
     fun requestExport(onResult: (ExportResultDto) -> Unit) {
         if (_state.value.exporting) return
         _state.update { it.copy(exporting = true, error = null) }

@@ -9,14 +9,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.luvtter.app.theme.LuvtterTheme
@@ -24,9 +24,8 @@ import com.luvtter.app.ui.common.formatLocalDate
 import com.luvtter.contract.dto.LetterSummaryDto
 
 /**
- * 收件箱信封堆叠。webui/screens.jsx Inbox + EnvelopeStackItem。
- *
- * 每封信渲染一个轻微旋转的 EnvelopeThumb,点击进入详情。
+ * 收件箱信封网格。每行 N 列(由可用宽度自适应,最小列宽 320dp),
+ * 桌面宽屏可显 2-3 列,信封感保留(纸纹 + 折线 + 火漆 + 邮戳邮票)但单封尺寸大幅缩减。
  */
 @Composable
 fun InboxStack(
@@ -35,20 +34,21 @@ fun InboxStack(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 320.dp),
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        itemsIndexed(letters, key = { _, l -> l.id }) { index, letter ->
+        items(letters, key = { it.id }) { letter ->
             EnvelopeStackItem(
                 letter = letter,
                 mine = isLetterMine(letter),
-                index = index,
                 onClick = { onOpen(letter.id) },
             )
         }
-        item(key = "__empty_foot__") { EmptyFoot() }
+        item(key = "__empty_foot__", span = { GridItemSpan(maxLineSpan) }) { EmptyFoot() }
     }
 }
 
@@ -56,16 +56,12 @@ fun InboxStack(
 private fun EnvelopeStackItem(
     letter: LetterSummaryDto,
     mine: Boolean,
-    index: Int,
     onClick: () -> Unit,
 ) {
-    val rot = (if (index % 2 == 0) -0.4f else 0.5f) + index * 0.15f
     val view = letter.toEnvelopeView(mine)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .widthIn(max = 620.dp)
-            .rotate(rot)
             .clickable(onClick = onClick),
     ) {
         EnvelopeThumb(view = view)

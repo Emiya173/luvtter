@@ -5,7 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,8 +32,13 @@ import com.luvtter.app.theme.LuvtterTheme
 import com.luvtter.app.ui.common.PaperDialog
 import com.luvtter.app.ui.common.PaperGhostButton
 import com.luvtter.app.ui.common.PaperListRow
+import com.luvtter.app.ui.common.PaperLoadingHint
+import com.luvtter.app.ui.common.PaperPrimaryButton
+import com.luvtter.app.ui.common.PaperToastHost
+import com.luvtter.app.ui.common.PaperToastKind
 import com.luvtter.app.ui.common.formatLocalDate
 import com.luvtter.app.ui.common.formatLocalDateTime
+import com.luvtter.app.ui.common.rememberPaperToastState
 import com.luvtter.contract.dto.AttachmentDto
 import com.luvtter.contract.dto.LetterDetailDto
 import com.luvtter.contract.dto.StickerDto
@@ -57,7 +63,8 @@ fun LetterDetailScreen(
         onDismissFolderPicker = { showFolderPicker = false },
         onAssignFolder = { id -> vm.assignFolder(id) { showFolderPicker = false } },
         onHide = { vm.hide(onBack) },
-        onUnhide = { vm.unhide(onBack) }
+        onUnhide = { vm.unhide(onBack) },
+        onClearError = vm::clearError,
     )
 }
 
@@ -74,59 +81,66 @@ private fun LetterDetailContent(
     onAssignFolder: (String?) -> Unit,
     onHide: () -> Unit,
     onUnhide: () -> Unit,
+    onClearError: () -> Unit,
 ) {
     val tokens = LuvtterTheme.tokens
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(tokens.colors.paperDeep),
-    ) {
-        ReadingTopBar(
-            title = state.detail?.summary?.preview?.take(18) ?: "信件",
-            trailing = state.detail?.summary?.let { s ->
-                formatLocalDateTime(s.deliveredAt ?: s.deliveryAt ?: s.sentAt) ?: ""
-            } ?: "",
-            onBack = onBack,
-        )
-
-        val d = state.detail
-        if (d == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (state.error != null) {
-                    Text(state.error, color = tokens.colors.seal)
-                } else {
-                    Text("加载中…", color = tokens.colors.inkFaded)
-                }
-            }
-            return@Column
+    val toast = rememberPaperToastState()
+    LaunchedEffect(state.error) {
+        state.error?.let {
+            toast.show(it, PaperToastKind.Error, durationMs = 4000L)
+            onClearError()
         }
+    }
 
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 32.dp, vertical = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .background(tokens.colors.paperDeep),
         ) {
-            LetterPaper(detail = d, stickers = state.stickers)
-
-            Spacer(Modifier.height(24.dp))
-
-            ActionBar(
-                detail = d,
-                viewerIsRecipient = viewerId != null && d.summary.recipient?.id == viewerId,
-                onReply = { onReply(d.summary.sender?.handle) },
-                onToggleFavorite = onToggleFavorite,
-                onShowFolderPicker = onShowFolderPicker,
-                onHide = onHide,
-                onUnhide = onUnhide,
+            ReadingTopBar(
+                title = state.detail?.summary?.preview?.take(18) ?: "信件",
+                trailing = state.detail?.summary?.let { s ->
+                    formatLocalDateTime(s.deliveredAt ?: s.deliveryAt ?: s.sentAt) ?: ""
+                } ?: "",
+                onBack = onBack,
             )
 
-            if (state.events.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
-                EventsSection(events = state.events)
+            val d = state.detail
+            if (d == null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    PaperLoadingHint()
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 32.dp, vertical = 40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    LetterPaper(detail = d, stickers = state.stickers)
+
+                    Spacer(Modifier.height(24.dp))
+
+                    ActionBar(
+                        detail = d,
+                        viewerIsRecipient = viewerId != null && d.summary.recipient?.id == viewerId,
+                        onReply = { onReply(d.summary.sender?.handle) },
+                        onToggleFavorite = onToggleFavorite,
+                        onShowFolderPicker = onShowFolderPicker,
+                        onHide = onHide,
+                        onUnhide = onUnhide,
+                    )
+
+                    if (state.events.isNotEmpty()) {
+                        Spacer(Modifier.height(24.dp))
+                        EventsSection(events = state.events)
+                    }
+                }
             }
         }
+        PaperToastHost(toast, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
     if (showFolderPicker) {
@@ -408,24 +422,21 @@ private fun ActionBar(
         modifier = Modifier
             .widthIn(max = 640.dp)
             .fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (viewerIsRecipient && (s.status == "delivered" || s.status == "read")) {
-            Button(onClick = onReply) { Text("回信") }
-            Spacer(Modifier.width(12.dp))
+            PaperPrimaryButton(label = "回 · 信", onClick = onReply)
         }
-        OutlinedButton(onClick = onToggleFavorite) {
-            Text(if (s.isFavorite) "取消收藏" else "收藏此信")
-        }
-        Spacer(Modifier.width(12.dp))
-        OutlinedButton(onClick = onShowFolderPicker) { Text("移到分类") }
+        PaperGhostButton(
+            label = if (s.isFavorite) "取 消 收 藏" else "收 · 藏",
+            onClick = onToggleFavorite,
+        )
+        PaperGhostButton(label = "归 · 卷", onClick = onShowFolderPicker)
         if (s.hidden) {
-            Spacer(Modifier.width(12.dp))
-            OutlinedButton(onClick = onUnhide) { Text("恢复") }
+            PaperGhostButton(label = "复 · 出", onClick = onUnhide)
         } else if (s.status == "delivered" || s.status == "read" || s.status == "in_transit") {
-            Spacer(Modifier.width(12.dp))
-            OutlinedButton(onClick = onHide) { Text("隐藏") }
+            PaperGhostButton(label = "隐 · 藏", onClick = onHide, danger = true)
         }
     }
 }
@@ -477,9 +488,10 @@ private fun ScannedBody(label: String, url: String?) {
         )
     } else {
         val uri = LocalUriHandler.current
-        OutlinedButton(onClick = { uri.openUri(url) }) {
-            Text(if (label == "扫描信") "在浏览器中打开 PDF" else "打开原始文件")
-        }
+        PaperGhostButton(
+            label = if (label == "扫描信") "在 浏 览 器 打 开 PDF" else "打 开 原 始 文 件",
+            onClick = { uri.openUri(url) },
+        )
     }
 }
 

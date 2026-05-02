@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,13 +23,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.luvtter.app.theme.LuvtterTheme
-import com.luvtter.app.ui.common.PaperEmptyHint
+import com.luvtter.app.ui.common.PaperEmptyState
 import com.luvtter.app.ui.common.PaperGhostButton
 import com.luvtter.app.ui.common.PaperListRow
+import com.luvtter.app.ui.common.PaperLoadingHint
 import com.luvtter.app.ui.common.PaperPageScaffold
 import com.luvtter.app.ui.common.PaperSectionHeader
-import com.luvtter.app.ui.common.PaperStatusBar
+import com.luvtter.app.ui.common.PaperToastKind
 import com.luvtter.app.ui.common.formatLocalDateTime
+import com.luvtter.app.ui.common.rememberPaperToastState
 import com.luvtter.contract.dto.SessionDto
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -56,9 +59,17 @@ private fun SessionsContent(
     onClearError: () -> Unit,
 ) {
     val tokens = LuvtterTheme.tokens
+    val toast = rememberPaperToastState()
+    LaunchedEffect(state.error) {
+        state.error?.let {
+            toast.show(it, PaperToastKind.Error)
+            onClearError()
+        }
+    }
     PaperPageScaffold(
         title = "已 · 登 · 录 · 设 · 备",
         onBack = onBack,
+        toastState = toast,
         trailing = {
             TextButton(
                 enabled = !state.loading,
@@ -96,21 +107,16 @@ private fun SessionsContent(
                 ),
             )
 
-            state.error?.let {
-                PaperStatusBar(it)
-                Spacer(Modifier.height(4.dp))
-                Row {
-                    PaperGhostButton(label = "知 道 了", onClick = onClearError)
-                }
-            }
-
             PaperSectionHeader(
                 "活 · 跃 · 会 · 话  ACTIVE",
                 hint = if (state.sessions.isEmpty()) null else "${state.sessions.size}",
             )
             when {
-                state.loading && state.sessions.isEmpty() -> PaperEmptyHint("加载中…")
-                state.sessions.isEmpty() -> PaperEmptyHint("尚无活跃会话。")
+                state.loading && state.sessions.isEmpty() -> PaperLoadingHint()
+                state.sessions.isEmpty() -> PaperEmptyState(
+                    title = "尚无活跃会话",
+                    hint = "刷新或重新登录后会出现在此",
+                )
                 else -> state.sessions.forEach { s ->
                     PaperListRow {
                         SessionRow(

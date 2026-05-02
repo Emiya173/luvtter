@@ -8,6 +8,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,7 @@ fun ContactsScreen(
         onBlockLookupResult = vm::blockLookupResult,
         onDeleteContact = vm::deleteContact,
         onUnblock = vm::unblock,
+        onClearStatus = vm::clearStatus,
     )
 }
 
@@ -63,9 +65,17 @@ private fun ContactsContent(
     onBlockLookupResult: () -> Unit,
     onDeleteContact: (String) -> Unit,
     onUnblock: (String) -> Unit,
+    onClearStatus: () -> Unit,
 ) {
     val tokens = LuvtterTheme.tokens
-    PaperPageScaffold(title = "联 · 系 · 人", onBack = onBack) {
+    val toast = rememberPaperToastState()
+    LaunchedEffect(state.status) {
+        state.status?.let {
+            toast.show(it, PaperToastKind.Error)
+            onClearStatus()
+        }
+    }
+    PaperPageScaffold(title = "联 · 系 · 人", onBack = onBack, toastState = toast) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -151,15 +161,16 @@ private fun ContactsContent(
                         )
                     }
 
-                    state.status?.let { PaperStatusBar(it) }
-
                     // ── 联系人列表 ──
                     PaperSectionHeader(
                         "已 · 添 · 加  CONTACTS",
                         hint = if (state.contacts.isEmpty()) null else "${state.contacts.size}",
                     )
                     if (state.contacts.isEmpty()) {
-                        PaperEmptyHint("尚未结识。")
+                        PaperEmptyState(
+                            title = "尚未结识",
+                            hint = "上方查找用户,「加为联系人」即可入列",
+                        )
                     } else {
                         state.contacts.forEach { c ->
                             PaperListRow {
@@ -210,7 +221,7 @@ private fun ContactsContent(
                         hint = if (state.blocks.isEmpty()) null else "${state.blocks.size}",
                     )
                     if (state.blocks.isEmpty()) {
-                        PaperEmptyHint("没有屏蔽任何人。")
+                        PaperEmptyState(title = "没有屏蔽任何人")
                     } else {
                         state.blocks.forEach { b ->
                             PaperListRow {

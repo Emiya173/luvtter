@@ -21,8 +21,11 @@ import com.luvtter.app.theme.LuvtterTheme
 import com.luvtter.app.theme.paperGrain
 
 /**
- * Inbox / Correspondence 通用信封缩略图。webui/components.jsx EnvelopeThumb。
- * 长宽比固定 1.62:1(黄金比)。
+ * Inbox 信封缩略图(网格单元版本)。
+ *
+ * 黄金比 1.62:1 矩形,装饰齐全(V 折线、纸纹、火漆、邮戳、邮票),
+ * 尺寸按宽度自适应:配合 LazyVerticalGrid 的 ~320dp 列宽,实际信封约 320×198dp,
+ * 比之前列表版(~620×383)缩到三分之一,但视觉密度更高。
  */
 @Immutable
 data class EnvelopeView(
@@ -49,12 +52,17 @@ fun EnvelopeThumb(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1.62f)
-            .shadow(if (view.opened) 0.dp else 8.dp, RectangleShape, clip = false, ambientColor = Color(0xFF281A0A).copy(alpha = shadowAlpha))
+            .shadow(
+                if (view.opened) 1.dp else 6.dp,
+                RectangleShape,
+                clip = false,
+                ambientColor = Color(0xFF281A0A).copy(alpha = shadowAlpha),
+            )
             .background(
                 Brush.verticalGradient(listOf(Color(0xFFFBF7ED), Color(0xFFF2EBD8)))
             )
             .paperGrain(seed = view.partyName.hashCode().toLong())
-            .padding(horizontal = 22.dp, vertical = 20.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         val envWidth = maxWidth
         val envHeight = maxHeight
@@ -62,7 +70,6 @@ fun EnvelopeThumb(
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            // 顶部 V 形折线
             drawLine(
                 color = tokens.colors.paperEdge.copy(alpha = 0.6f),
                 start = Offset(0f, 0f),
@@ -82,25 +89,25 @@ fun EnvelopeThumb(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (view.direction == EnvelopeView.Direction.Incoming) "自 · FROM" else "致 · TO",
-                    style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
+                    style = tokens.typography.meta.copy(fontSize = 8.sp, color = tokens.colors.inkFaded),
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = view.partyName,
                     style = tokens.typography.title.copy(
-                        fontSize = 17.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.7.sp,
+                        letterSpacing = 0.5.sp,
                         color = tokens.colors.ink,
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(3.dp))
                 Text(
                     text = "${view.cityOrAddress} · ${view.sentAt}",
                     style = tokens.typography.caption.copy(
-                        fontSize = 12.sp,
+                        fontSize = 10.sp,
                         color = tokens.colors.inkFaded,
                         fontStyle = FontStyle.Italic,
                     ),
@@ -109,13 +116,13 @@ fun EnvelopeThumb(
                 )
             }
 
-            // 邮戳 + 邮票横向堆叠,尺寸跟随信封宽度缩放
-            val postmarkSize = (envWidth * 0.22f).coerceIn(48.dp, 96.dp)
-            val stampSize = (envWidth * 0.16f).coerceIn(36.dp, 68.dp)
+            // 邮戳 + 邮票横向堆叠,尺寸跟随信封宽度缩放(网格版 clamp 上限缩到一半)
+            val postmarkSize = (envWidth * 0.22f).coerceIn(36.dp, 60.dp)
+            val stampSize = (envWidth * 0.16f).coerceIn(26.dp, 44.dp)
             Row(
-                modifier = Modifier.padding(start = 8.dp),
+                modifier = Modifier.padding(start = 6.dp),
                 verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Postmark(
                     city = view.cityOrAddress.take(2),
@@ -128,9 +135,9 @@ fun EnvelopeThumb(
             }
         }
 
-        // 未拆 + 收件 → 火漆压在封口 V 形交点。尺寸跟随信封宽度(18%)
+        // 未拆 + 收件 → 火漆压在封口 V 形交点。网格版 18% / 28..48dp
         if (!view.opened && view.direction == EnvelopeView.Direction.Incoming) {
-            val sealSize = (envWidth * 0.18f).coerceAtLeast(36.dp)
+            val sealSize = (envWidth * 0.18f).coerceIn(28.dp, 48.dp)
             val flapY = envHeight * 0.58f - sealSize / 2f
             Box(
                 modifier = Modifier

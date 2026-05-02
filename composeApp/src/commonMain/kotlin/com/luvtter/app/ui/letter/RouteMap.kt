@@ -2,6 +2,7 @@ package com.luvtter.app.ui.letter
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -12,8 +13,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.luvtter.app.theme.LuvtterTheme
 
 /**
@@ -95,11 +98,44 @@ fun RouteMap(
         Box(
             modifier = Modifier
                 .offset(
-                    x = with(androidx.compose.ui.platform.LocalDensity.current) { (pos.x - 18f).toDp() },
-                    y = with(androidx.compose.ui.platform.LocalDensity.current) { (pos.y - 11f).toDp() },
+                    x = with(LocalDensity.current) { (pos.x - 18f).toDp() },
+                    y = with(LocalDensity.current) { (pos.y - 11f).toDp() },
                 ),
         ) {
             EnvelopeIcon()
+        }
+
+        // 端点城市标签 —— 起点(左下) / 终点(右上)
+        val labelStyle = tokens.typography.meta.copy(
+            fontSize = 10.sp,
+            color = tokens.colors.inkFaded,
+            letterSpacing = 0.4.sp,
+        )
+        val sxDp = maxWidth / 700f
+        val syDp = maxHeight / 96f
+        Box(
+            modifier = Modifier
+                .offset(x = sxDp * 30f - 24.dp, y = syDp * 70f + 6.dp)
+                .widthIn(max = 56.dp),
+        ) {
+            Text(
+                fromLabel.take(4),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                style = labelStyle,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .offset(x = sxDp * 670f - 32.dp, y = syDp * 40f - 18.dp)
+                .widthIn(max = 56.dp),
+        ) {
+            Text(
+                toLabel.take(4),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                style = labelStyle,
+            )
         }
     }
 }

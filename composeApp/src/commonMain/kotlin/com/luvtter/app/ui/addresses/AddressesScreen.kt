@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,7 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.luvtter.app.theme.LuvtterTheme
 import com.luvtter.app.ui.common.PaperChip
-import com.luvtter.app.ui.common.PaperEmptyHint
+import com.luvtter.app.ui.common.PaperEmptyState
 import com.luvtter.app.ui.common.PaperFieldLabel
 import com.luvtter.app.ui.common.PaperGhostButton
 import com.luvtter.app.ui.common.PaperInput
@@ -30,7 +31,8 @@ import com.luvtter.app.ui.common.PaperListRow
 import com.luvtter.app.ui.common.PaperPageScaffold
 import com.luvtter.app.ui.common.PaperPrimaryButton
 import com.luvtter.app.ui.common.PaperSectionHeader
-import com.luvtter.app.ui.common.PaperStatusBar
+import com.luvtter.app.ui.common.PaperToastKind
+import com.luvtter.app.ui.common.rememberPaperToastState
 import androidx.compose.ui.text.input.KeyboardType
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -51,6 +53,7 @@ fun AddressesScreen(
         onCreate = vm::create,
         onSetDefault = vm::setDefault,
         onDelete = vm::delete,
+        onClearStatus = vm::clearStatus,
     )
 }
 
@@ -66,9 +69,17 @@ private fun AddressesContent(
     onCreate: () -> Unit,
     onSetDefault: (String) -> Unit,
     onDelete: (String) -> Unit,
+    onClearStatus: () -> Unit,
 ) {
     val tokens = LuvtterTheme.tokens
-    PaperPageScaffold(title = "我 · 的 · 地 · 址", onBack = onBack) {
+    val toast = rememberPaperToastState()
+    LaunchedEffect(state.status) {
+        state.status?.let {
+            toast.show(it, PaperToastKind.Error)
+            onClearStatus()
+        }
+    }
+    PaperPageScaffold(title = "我 · 的 · 地 · 址", onBack = onBack, toastState = toast) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -141,15 +152,16 @@ private fun AddressesContent(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            state.status?.let { PaperStatusBar(it) }
-
             // ── 已有地址 ──
             PaperSectionHeader(
                 "已 · 有 · 地 · 址  STORED",
                 hint = if (state.addresses.isEmpty()) null else "${state.addresses.size}",
             )
             if (state.addresses.isEmpty()) {
-                PaperEmptyHint("尚未立址。")
+                PaperEmptyState(
+                    title = "尚未立址",
+                    hint = "上方填写名称与坐标,先立第一处地址",
+                )
             } else {
                 state.addresses.forEach { a ->
                     PaperListRow {

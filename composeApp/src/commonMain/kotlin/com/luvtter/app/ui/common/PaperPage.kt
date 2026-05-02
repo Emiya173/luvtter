@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.luvtter.app.theme.LuvtterTheme
@@ -36,6 +37,7 @@ fun PaperPageScaffold(
     title: String,
     onBack: () -> Unit,
     trailing: @Composable (() -> Unit)? = null,
+    toastState: PaperToastState? = null,
     content: @Composable () -> Unit,
 ) {
     val tokens = LuvtterTheme.tokens
@@ -43,9 +45,14 @@ fun PaperPageScaffold(
         modifier = Modifier.fillMaxSize(),
         color = tokens.colors.paper,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            PaperTopBar(title = title, onBack = onBack, trailing = trailing)
-            content()
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                PaperTopBar(title = title, onBack = onBack, trailing = trailing)
+                content()
+            }
+            if (toastState != null) {
+                PaperToastHost(toastState, modifier = Modifier.align(Alignment.BottomCenter))
+            }
         }
     }
 }
@@ -343,23 +350,71 @@ fun PaperListRow(
     }
 }
 
+/**
+ * 空态。一行 title(必填),可选 hint(下方 meta 11sp 灰字),可选 action(下方右对齐次按钮)。
+ *
+ * 单 title 时与原 PaperEmptyHint 表现相近,但字号略大、letterSpacing 略宽,有「邮局留白」的呼吸感。
+ * 列表内联场景应配 `verticalPadding = 32.dp`(默认),全屏占位场景调用方自己用 Box(fillMaxSize) 居中。
+ */
 @Composable
-fun PaperEmptyHint(text: String) {
+fun PaperEmptyState(
+    title: String,
+    hint: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+    verticalPadding: Dp = 32.dp,
+) {
     val tokens = LuvtterTheme.tokens
-    Box(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-        contentAlignment = Alignment.Center,
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = verticalPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text,
+            title,
             style = TextStyle(
                 fontFamily = tokens.fonts.serifZh,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 color = tokens.colors.inkGhost,
-                letterSpacing = 0.5.sp,
+                letterSpacing = 0.6.sp,
             ),
         )
+        if (hint != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                hint,
+                style = tokens.typography.meta.copy(
+                    fontSize = 11.sp,
+                    color = tokens.colors.inkFaded,
+                    letterSpacing = 0.4.sp,
+                ),
+            )
+        }
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(14.dp))
+            PaperGhostButton(label = actionLabel, onClick = onAction)
+        }
     }
 }
+
+/** 旧 API 兼容包装。新调用统一走 PaperEmptyState。 */
+@Composable
+fun PaperEmptyHint(text: String) = PaperEmptyState(title = text)
+
+/**
+ * 顶部细线进度条。webui 中信箱顶部刷新指示。色值与纸面一致,height 2dp。
+ */
+@Composable
+fun PaperLoadingBar(modifier: Modifier = Modifier) {
+    val tokens = LuvtterTheme.tokens
+    androidx.compose.material3.LinearProgressIndicator(
+        modifier = modifier.fillMaxWidth().height(2.dp),
+        color = tokens.colors.seal,
+        trackColor = tokens.colors.ruleSoft,
+    )
+}
+
+/** 行内/段内加载文案。serifZh 灰,带省略号,呼应 PaperEmptyState。 */
+@Composable
+fun PaperLoadingHint(text: String = "加载中…") = PaperEmptyState(title = text)
 
 internal val PaperPageMaxWidth = 720.dp

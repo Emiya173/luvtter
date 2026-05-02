@@ -1,7 +1,9 @@
 package com.luvtter.app.ui.letter
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,11 +22,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.luvtter.app.theme.LuvtterTheme
@@ -45,21 +50,18 @@ fun OutboxList(
 ) {
     val tokens = LuvtterTheme.tokens
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(tokens.colors.paper, tokens.colors.paperDeep),
-                ),
-            ),
-        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(48.dp),
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         itemsIndexed(letters, key = { _, l -> l.id }) { _, letter ->
             Box(
                 modifier = Modifier
                     .widthIn(max = 720.dp)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .background(tokens.colors.paperRaised, RoundedCornerShape(2.dp))
+                    .border(0.5.dp, tokens.colors.paperEdge, RoundedCornerShape(2.dp))
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
             ) {
                 if (letter.status == "in_transit") {
                     InTransitCard(letter = letter, onClick = { onOpen(letter.id) })
@@ -87,8 +89,8 @@ private fun InTransitCard(letter: LetterSummaryDto, onClick: () -> Unit) {
         else -> "运输中"
     }
     val recipientName = letter.recipient?.displayName ?: "—"
-    val recipientCity = letter.recipientAddressLabel?.takeIf { it.isNotBlank() } ?: "远方"
-    val senderCity = letter.senderAddressLabel?.takeIf { it.isNotBlank() } ?: ""
+    val recipientCity = letter.recipientAddressLabel?.takeIf { it.isNotBlank() } ?: "—"
+    val senderCity = letter.senderAddressLabel?.takeIf { it.isNotBlank() } ?: "—"
     val sentLabel = formatLocalDate(letter.sentAt) ?: "—"
     val etaLabel = formatLocalDate(letter.deliveryAt) ?: "—"
 
@@ -158,8 +160,8 @@ private fun InTransitCard(letter: LetterSummaryDto, onClick: () -> Unit) {
 
         RouteMap(
             progress = progress,
-            fromLabel = senderCity.firstOrNull()?.toString() ?: "—",
-            toLabel = recipientCity.firstOrNull()?.toString() ?: "—",
+            fromLabel = senderCity,
+            toLabel = recipientCity,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp),
@@ -207,12 +209,21 @@ private fun InTransitCard(letter: LetterSummaryDto, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 已送达 / 已读 / 草稿 / 已封缄 / 已隐藏 等终态卡。
+ *
+ * 与 InTransitCard 同骨架(头部 · 中段 · 底部 + dashed 顶分隔),让发件箱内两种卡视觉一致:
+ * - 头部:致 · 城市 · 收件人(weight 1f),右侧 [完成印章 64×40 旋转 6°],占住右侧空白
+ * - 中段:preview 一行,左侧 stampInk 4dp 短 accent 强调
+ * - 底部:[Stamp 28] 状态 + 「沿途 N 天」/ 状态文字,右侧「sentAt ──✓── deliveredAt」时间轴
+ */
 @Composable
 private fun StaleOutgoingCard(letter: LetterSummaryDto, onClick: () -> Unit) {
     val tokens = LuvtterTheme.tokens
     val recipientName = letter.recipient?.displayName ?: "—"
     val recipientCity = letter.recipientAddressLabel?.takeIf { it.isNotBlank() } ?: "—"
-    val time = formatLocalDate(letter.deliveredAt ?: letter.sentAt) ?: "—"
+    val sentLabel = formatLocalDate(letter.sentAt) ?: "—"
+    val arriveLabel = formatLocalDate(letter.deliveredAt ?: letter.sentAt) ?: "—"
     val statusLabel = when (letter.status) {
         "delivered" -> "已送达"
         "read" -> "已读"
@@ -221,36 +232,166 @@ private fun StaleOutgoingCard(letter: LetterSummaryDto, onClick: () -> Unit) {
         "hidden" -> "已隐藏"
         else -> letter.status
     }
-    Row(
+    // 印章短形:已送达 / 已读 → 实印,其余(草稿等)→ 灰
+    val isCompleted = letter.status == "delivered" || letter.status == "read"
+    val stampColor = if (isCompleted) tokens.colors.stampInk else tokens.colors.inkGhost
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(onClick = onClick),
     ) {
-        val spec = Stamps.byId(letter.stampCode ?: "airmail")
-        Stamp(spec = spec, size = 32.dp)
-        Spacer(Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "致 · $recipientCity · $recipientName",
-                style = tokens.typography.title.copy(fontSize = 16.sp, letterSpacing = 0.64.sp),
-                maxLines = 1,
-            )
-            letter.preview?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(2.dp))
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    it,
-                    style = tokens.typography.body.copy(fontSize = 13.sp, lineHeight = 19.sp, color = tokens.colors.inkSoft),
-                    maxLines = 2,
+                    "致",
+                    style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded),
+                )
+                Text(
+                    "$recipientCity · $recipientName",
+                    style = tokens.typography.title.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.72.sp,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.height(4.dp))
+            CompletionBadge(label = statusLabel, date = arriveLabel, ink = stampColor)
+        }
+
+        // Preview(若有)
+        letter.preview?.takeIf { it.isNotBlank() }?.let { preview ->
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .height(28.dp)
+                        .width(2.dp)
+                        .background(stampColor.copy(alpha = 0.45f)),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    preview,
+                    style = tokens.typography.body.copy(
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        color = tokens.colors.inkSoft,
+                        fontStyle = FontStyle.Italic,
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        // 底部:邮票 + 状态 + 时间轴(与 InTransitCard 底部同款 dashed 顶分隔)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    val dash = PathEffect.dashPathEffect(floatArrayOf(3f, 4f), 0f)
+                    drawLine(
+                        color = tokens.colors.rule.copy(alpha = 0.4f),
+                        start = Offset(0f, 0f),
+                        end = Offset(size.width, 0f),
+                        strokeWidth = 0.5f,
+                        pathEffect = dash,
+                    )
+                }
+                .padding(top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val spec = Stamps.byId(letter.stampCode ?: "airmail")
+            Stamp(spec = spec, size = 28.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(statusLabel, style = tokens.typography.meta.copy(fontSize = 9.sp, color = tokens.colors.inkFaded))
+                Text(
+                    if (isCompleted) "投递完成" else "未送出",
+                    style = tokens.typography.caption.copy(
+                        fontSize = 12.sp,
+                        color = tokens.colors.inkSoft,
+                        fontStyle = FontStyle.Italic,
+                    ),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             Text(
-                "$statusLabel · $time",
-                style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkGhost),
+                "$sentLabel ──✓── $arriveLabel",
+                style = tokens.typography.meta.copy(
+                    fontSize = 10.sp,
+                    color = tokens.colors.inkFaded,
+                    letterSpacing = 0.6.sp,
+                ),
             )
         }
     }
 }
+
+/**
+ * 完成印章:右上角的小方印,与 InTransitCard 右上「预计 ETA」位置对齐,占满右侧空白。
+ * 旋转 6°,1px 实色边 + 半透 stampInk 描印,11sp 状态字 + 9sp 日期。
+ */
+@Composable
+private fun CompletionBadge(label: String, date: String, ink: androidx.compose.ui.graphics.Color) {
+    val tokens = LuvtterTheme.tokens
+    Box(
+        modifier = Modifier
+            .padding(start = 12.dp)
+            .rotate(6f)
+            .height(40.dp)
+            .widthIn(min = 64.dp, max = 84.dp)
+            .drawBehind {
+                drawRect(
+                    color = ink,
+                    style = Stroke(width = 1.2f),
+                )
+                // 内层细描边,印章感
+                inset(2f) {
+                    drawRect(
+                        color = ink.copy(alpha = 0.35f),
+                        style = Stroke(width = 0.5f),
+                    )
+                }
+            }
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                label,
+                style = tokens.typography.title.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = ink,
+                    letterSpacing = 1.2.sp,
+                ),
+                maxLines = 1,
+            )
+            Text(
+                date,
+                style = tokens.typography.meta.copy(
+                    fontSize = 8.sp,
+                    color = ink.copy(alpha = 0.75f),
+                    letterSpacing = 0.4.sp,
+                ),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
 

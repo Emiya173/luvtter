@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,6 +44,9 @@ fun HomeScreen(
     HomeContent(
         state = state,
         user = user,
+        onConsumeError = vm::clearError,
+        onConsumeReward = vm::clearReward,
+        onConsumeExport = vm::clearLastExport,
         isLetterMine = vm::letterOwnedByMe,
         showNotifications = showNotifications,
         showSwitchLocation = showSwitchLocation,
@@ -108,6 +110,9 @@ fun HomeScreen(
 private fun HomeContent(
     state: HomeUiState,
     user: UserDto?,
+    onConsumeError: () -> Unit,
+    onConsumeReward: () -> Unit,
+    onConsumeExport: () -> Unit,
     isLetterMine: (LetterSummaryDto) -> Boolean,
     showNotifications: Boolean,
     showSwitchLocation: Boolean,
@@ -153,6 +158,34 @@ private fun HomeContent(
     val handleLabel = user?.handle?.let { "@$it" } ?: "@—"
     val needsFinalize = user?.handleFinalized == false
 
+    val toast = rememberPaperToastState()
+    LaunchedEffect(state.error) {
+        state.error?.let {
+            toast.show(it, PaperToastKind.Error, durationMs = 4000L)
+            onConsumeError()
+        }
+    }
+    LaunchedEffect(state.reward) {
+        state.reward?.let {
+            toast.show(it, PaperToastKind.Success, durationMs = 5000L)
+            onConsumeReward()
+        }
+    }
+    LaunchedEffect(state.lastExport) {
+        state.lastExport?.let { ex ->
+            val mins = ex.expiresInSeconds / 60
+            toast.show(
+                message = "已导出 ${ex.letterCount} 封信 · ${ex.sizeBytes / 1024} KB · 链接 ${mins} 分钟内有效",
+                kind = PaperToastKind.Info,
+                durationMs = 0L,
+                actionLabel = "打 开 下 载",
+                onAction = { onOpenExportLink(ex.downloadUrl) },
+            )
+            onConsumeExport()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Row(modifier = Modifier.fillMaxSize()) {
         HomeSidebar(
             selected = state.tab,
@@ -217,51 +250,7 @@ private fun HomeContent(
                 FirstLetterPromptCard(onStart = onStartFirstLetter, onDismiss = onDismissFirstLetterPrompt)
             }
 
-            state.lastExport?.let { ex ->
-                val tokens = LuvtterTheme.tokens
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(tokens.colors.paperRaised)
-                        .drawBehind {
-                            drawLine(
-                                color = tokens.colors.ruleSoft,
-                                start = Offset(0f, size.height - 0.5f),
-                                end = Offset(size.width, size.height - 0.5f),
-                                strokeWidth = 0.5f,
-                            )
-                        }
-                        .padding(horizontal = 32.dp, vertical = 10.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "已导出 ${ex.letterCount} 封信 · ${ex.sizeBytes / 1024} KB · 链接 ${ex.expiresInSeconds / 60} 分钟内有效",
-                            modifier = Modifier.weight(1f),
-                            style = tokens.typography.meta.copy(
-                                fontSize = 11.sp,
-                                color = tokens.colors.inkSoft,
-                            ),
-                        )
-                        PaperGhostButton(
-                            label = "打 开 下 载",
-                            onClick = { onOpenExportLink(ex.downloadUrl) },
-                        )
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    SelectionContainer {
-                        Text(
-                            ex.downloadUrl,
-                            style = tokens.typography.meta.copy(
-                                fontSize = 10.sp,
-                                color = tokens.colors.seal,
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onOpenExportLink(ex.downloadUrl) },
-                        )
-                    }
-                }
-            }
+            // 导出结果由 LaunchedEffect(state.lastExport) 推送至底部 PaperToast,持久显示直至用户关闭。
 
             if (state.tab == HomeTab.Inbox || state.tab == HomeTab.Outbox) {
                 val tokens = LuvtterTheme.tokens
@@ -296,75 +285,21 @@ private fun HomeContent(
                 )
             }
             if (state.loading) {
-                val tokens = LuvtterTheme.tokens
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth().height(2.dp),
-                    color = tokens.colors.seal,
-                    trackColor = tokens.colors.ruleSoft,
-                )
-            }
-            state.error?.let {
-                val tokens = LuvtterTheme.tokens
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .height(12.dp)
-                            .width(2.dp)
-                            .background(tokens.colors.seal),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        it,
-                        style = tokens.typography.meta.copy(fontSize = 11.sp, color = tokens.colors.seal),
-                    )
-                }
-            }
-            state.reward?.let {
-                val tokens = LuvtterTheme.tokens
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(tokens.colors.paperRaised)
-                        .padding(horizontal = 32.dp, vertical = 14.dp),
-                ) {
-                    Text(
-                        it,
-                        style = androidx.compose.ui.text.TextStyle(
-                            fontFamily = tokens.fonts.serifZh,
-                            fontSize = 13.sp,
-                            lineHeight = 20.sp,
-                            color = tokens.colors.inkSoft,
-                            letterSpacing = 0.4.sp,
-                        ),
-                    )
-                }
+                PaperLoadingBar()
             }
             if (!state.loading && state.letters.isEmpty()) {
-                val tokens = LuvtterTheme.tokens
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    val hint = when {
-                        state.tab == HomeTab.Favorites -> "尚无折角的信件"
-                        state.tab == HomeTab.Folders && state.folders.isEmpty() -> "尚无卷宗,先立一卷"
-                        state.tab == HomeTab.Folders && state.selectedFolderId == null -> "选一个卷宗,展信"
-                        state.tab == HomeTab.Folders -> "此卷尚空"
-                        state.showHidden -> "无已隐藏的信件"
-                        state.tab == HomeTab.Inbox && currentAddress != null -> "「${currentAddress.label}」当前空空如也"
-                        else -> "尚无信件"
+                    val (title, hint) = when {
+                        state.tab == HomeTab.Favorites -> "尚无折角的信件" to "在信件详情里轻折一角,即可收藏"
+                        state.tab == HomeTab.Folders && state.folders.isEmpty() -> "尚无卷宗" to "先立一卷,再把信归档"
+                        state.tab == HomeTab.Folders && state.selectedFolderId == null -> "选一个卷宗,展信" to null
+                        state.tab == HomeTab.Folders -> "此卷尚空" to "把相关的信件归入此卷"
+                        state.showHidden -> "无已隐藏的信件" to null
+                        state.tab == HomeTab.Inbox && currentAddress != null ->
+                            "「${currentAddress.label}」当前空空如也" to "等候来信,或先寄一封以引水"
+                        else -> "尚无信件" to null
                     }
-                    Text(
-                        hint,
-                        style = androidx.compose.ui.text.TextStyle(
-                            fontFamily = tokens.fonts.serifZh,
-                            fontSize = 14.sp,
-                            color = tokens.colors.inkGhost,
-                            letterSpacing = 0.6.sp,
-                        ),
-                    )
+                    PaperEmptyState(title = title, hint = hint)
                 }
             } else if (state.tab == HomeTab.Inbox && !state.showHidden) {
                 InboxStack(
@@ -454,6 +389,8 @@ private fun HomeContent(
             onDismiss = onDismissSearch,
             onOpen = onOpenLetterFromSearch
         )
+    }
+        PaperToastHost(toast, modifier = Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -563,13 +500,13 @@ private fun SearchDialogContent(
     onSearch: () -> Unit
 ) {
     val tokens = LuvtterTheme.tokens
-    PaperDialog(
+    PaperRightDrawer(
         onDismissRequest = onDismiss,
         title = "搜 · 寻 · 信 · 件",
         subtitle = "SEARCH · 关键词 / 寄件人 / 收件人",
         actions = { PaperGhostButton(label = "关 闭", onClick = onDismiss) },
     ) {
-        Column(modifier = Modifier.heightIn(max = 460.dp)) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Box(modifier = Modifier.weight(1f)) {
                     PaperInput(
@@ -804,7 +741,7 @@ private fun NotificationsDialog(
     onSwitchToAddress: (String) -> Unit
 ) {
     val tokens = LuvtterTheme.tokens
-    PaperDialog(
+    PaperRightDrawer(
         onDismissRequest = onDismiss,
         title = "驿 · 报",
         subtitle = "NOTIFICATIONS · 来自邮局的近况",
@@ -816,7 +753,7 @@ private fun NotificationsDialog(
         },
     ) {
         if (notifications.isEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     "暂 无 驿 报。",
                     style = androidx.compose.ui.text.TextStyle(
@@ -828,7 +765,7 @@ private fun NotificationsDialog(
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(notifications, key = { it.id }) { n ->
                     PaperListRow {
                         Column(modifier = Modifier.fillMaxWidth()) {

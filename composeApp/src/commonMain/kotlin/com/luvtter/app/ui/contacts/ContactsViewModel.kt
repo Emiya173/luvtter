@@ -106,4 +106,6 @@ class ContactsViewModel(
             }
         }
     }
+
+    fun clearStatus() = _state.update { it.copy(status = null) }
 }

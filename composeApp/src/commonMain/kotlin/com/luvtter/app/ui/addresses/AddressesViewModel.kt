@@ -64,4 +64,6 @@ class AddressesViewModel(private val addresses: AddressApi) : ViewModel() {
     fun delete(id: String) {
         viewModelScope.launch { runCatching { addresses.delete(id); reload() } }
     }
+
+    fun clearStatus() = _state.update { it.copy(status = null) }
 }
