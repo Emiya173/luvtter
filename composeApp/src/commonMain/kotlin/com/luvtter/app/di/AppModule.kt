@@ -11,6 +11,7 @@ import com.luvtter.app.ui.home.SearchViewModel
 import com.luvtter.app.ui.letter.LetterDetailViewModel
 import com.luvtter.app.ui.sessions.SessionsViewModel
 import com.luvtter.shared.auth.TokenStore
+import com.luvtter.shared.config.AppConfig
 import com.luvtter.shared.network.AddressApi
 import com.luvtter.shared.network.AuthApi
 import com.luvtter.shared.network.CatalogApi
@@ -30,7 +31,8 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
-fun appModule(apiBaseUrl: String) = module {
+fun appModule(apiBaseUrl: String, config: AppConfig) = module {
+    single { config }
     single { TokenStore() }
     single<HttpClient> {
         val tokens: TokenStore = get()

@@ -408,6 +408,14 @@ class LetterService(
             it[readAt] = now()
             it[updatedAt] = now()
         }
+        // 同信件的所有未读通知一起标记为已读,避免铃铛 badge 与信件拆封状态不同步
+        Notifications.update({
+            (Notifications.userId eq viewerId) and
+                (Notifications.letterId eq id) and
+                Notifications.readAt.isNull()
+        }) {
+            it[readAt] = now()
+        }
         row[Letters.senderId]?.let { senderId ->
             NotificationService.emitSignal(
                 senderId,

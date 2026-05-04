@@ -28,6 +28,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":api-contract"))
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktoml.core)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)
             api(libs.ktor.client.core)

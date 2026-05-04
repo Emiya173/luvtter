@@ -41,10 +41,17 @@ class LetterDetailViewModel(
             _state.update {
                 it.copy(detail = detail, events = events, folders = folderList, stickers = stickerList)
             }
-            if (detail.summary.status == "delivered") runCatching { letters.markRead(letterId) }
+            // markRead 不再在 reload 里触发 —— 由用户点击火漆拆封时显式调用 [markRead]。
         } catch (e: Exception) {
             _state.update { it.copy(error = e.message) }
         }
+    }
+
+    /** 用户点击火漆拆封时调用,服务端把 delivered → read,扣减 unread 计数。已读则幂等 no-op。 */
+    fun markRead() {
+        val s = _state.value.detail?.summary ?: return
+        if (s.status != "delivered") return
+        viewModelScope.launch { runCatching { letters.markRead(letterId) } }
     }
 
     fun toggleFavorite() {

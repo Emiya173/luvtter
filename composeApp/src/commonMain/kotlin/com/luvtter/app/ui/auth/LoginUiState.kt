@@ -1,8 +1,8 @@
 package com.luvtter.app.ui.auth
 
 data class LoginUiState(
-    val email: String = "test0@qq.com",
-    val password: String = "zxc123456",
+    val email: String = "",
+    val password: String = "",
     val loading: Boolean = false,
     val error: String? = null
 ) {

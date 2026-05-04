@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.luvtter.contract.dto.LoginRequest
 import com.luvtter.shared.auth.Session
 import com.luvtter.shared.auth.TokenStore
+import com.luvtter.shared.config.AppConfig
 import com.luvtter.shared.network.AuthApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,9 +15,14 @@ import kotlinx.coroutines.launch
 
 class LoginViewModel(
     private val auth: AuthApi,
-    private val tokens: TokenStore
+    private val tokens: TokenStore,
+    config: AppConfig,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(LoginUiState())
+    private val _state = MutableStateFlow(
+        if (config.devAuth.enabled)
+            LoginUiState(email = config.devAuth.email, password = config.devAuth.password)
+        else LoginUiState()
+    )
     val state: StateFlow<LoginUiState> = _state.asStateFlow()
 
     fun onEmailChange(v: String) = _state.update { it.copy(email = v.trim()) }

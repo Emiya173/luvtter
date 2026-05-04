@@ -33,8 +33,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.luvtter.app.theme.LuvtterTheme
+import com.luvtter.app.ui.common.PaperGhostButton
 import com.luvtter.app.ui.common.formatLocalDate
 import com.luvtter.contract.dto.LetterSummaryDto
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * 寄件箱在途列表。webui/compose.jsx Outbox + InTransitCard。
@@ -46,6 +49,7 @@ import com.luvtter.contract.dto.LetterSummaryDto
 fun OutboxList(
     letters: List<LetterSummaryDto>,
     onOpen: (String) -> Unit,
+    onExpedite: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LuvtterTheme.tokens
@@ -64,7 +68,11 @@ fun OutboxList(
                     .padding(horizontal = 18.dp, vertical = 16.dp),
             ) {
                 if (letter.status == "in_transit") {
-                    InTransitCard(letter = letter, onClick = { onOpen(letter.id) })
+                    InTransitCard(
+                        letter = letter,
+                        onClick = { onOpen(letter.id) },
+                        onExpedite = onExpedite?.let { exp -> { exp(letter.id) } },
+                    )
                 } else {
                     StaleOutgoingCard(letter = letter, onClick = { onOpen(letter.id) })
                 }
@@ -74,19 +82,34 @@ fun OutboxList(
 }
 
 @Composable
-private fun InTransitCard(letter: LetterSummaryDto, onClick: () -> Unit) {
+private fun InTransitCard(
+    letter: LetterSummaryDto,
+    onClick: () -> Unit,
+    onExpedite: (() -> Unit)? = null,
+) {
     val tokens = LuvtterTheme.tokens
-    val progress = when (letter.transitStage) {
-        "sending" -> 0.12f
-        "on_the_way" -> 0.55f
-        "arriving" -> 0.88f
-        else -> 0.5f
+    // 服务端只在收件人查询收件箱时把 in_transit 升 delivered。寄件方看 outbox 时,
+    // 如果 ETA 已过但收件人未上线,卡片不该再显示「即将抵达」。
+    val deliveryInstant = letter.deliveryAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+    val arrivedButUnopened = deliveryInstant != null && deliveryInstant < Clock.System.now()
+    val progress = when {
+        arrivedButUnopened -> 1f
+        else -> when (letter.transitStage) {
+            "sending" -> 0.12f
+            "on_the_way" -> 0.55f
+            "arriving" -> 0.88f
+            else -> 0.5f
+        }
     }
-    val stageLabel = when (letter.transitStage) {
-        "sending" -> "正离开邮局"
-        "on_the_way" -> "路上 · 风正顺"
-        "arriving" -> "即将抵达"
-        else -> "运输中"
+    // 标签只反映「时间是否走完」,不暴露收件人是否已读 —— 寄件方视角对读状态保持不可见
+    val stageLabel = when {
+        arrivedButUnopened -> "已抵达"
+        else -> when (letter.transitStage) {
+            "sending" -> "正离开邮局"
+            "on_the_way" -> "路上 · 风正顺"
+            "arriving" -> "即将抵达"
+            else -> "运输中"
+        }
     }
     val recipientName = letter.recipient?.displayName ?: "—"
     val recipientCity = letter.recipientAddressLabel?.takeIf { it.isNotBlank() } ?: "—"
@@ -205,6 +228,16 @@ private fun InTransitCard(letter: LetterSummaryDto, onClick: () -> Unit) {
                 "$sentLabel ────── $etaLabel",
                 style = tokens.typography.meta.copy(fontSize = 10.sp, color = tokens.colors.inkFaded, letterSpacing = 0.6.sp),
             )
+        }
+
+        if (onExpedite != null) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                PaperGhostButton(label = "加 速 到 达", onClick = onExpedite)
+            }
         }
     }
 }

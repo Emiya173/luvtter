@@ -1,5 +1,8 @@
 package com.luvtter.app.ui.letter
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -8,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +48,8 @@ import com.luvtter.contract.dto.LetterDetailDto
 import com.luvtter.contract.dto.StickerDto
 import org.koin.compose.viewmodel.koinViewModel
 
+private enum class ReadingPhase { Sealed, Opening, Reading, FoldingBack }
+
 @Composable
 fun LetterDetailScreen(
     onReply: (recipientHandle: String?) -> Unit,
@@ -65,6 +71,7 @@ fun LetterDetailScreen(
         onHide = { vm.hide(onBack) },
         onUnhide = { vm.unhide(onBack) },
         onClearError = vm::clearError,
+        onMarkRead = vm::markRead,
     )
 }
 
@@ -82,6 +89,7 @@ private fun LetterDetailContent(
     onHide: () -> Unit,
     onUnhide: () -> Unit,
     onClearError: () -> Unit,
+    onMarkRead: () -> Unit,
 ) {
     val tokens = LuvtterTheme.tokens
     val toast = rememberPaperToastState()
@@ -89,6 +97,35 @@ private fun LetterDetailContent(
         state.error?.let {
             toast.show(it, PaperToastKind.Error, durationMs = 4000L)
             onClearError()
+        }
+    }
+
+    val d = state.detail
+    val letterId = d?.summary?.id
+    val isOpenedAlready = d?.summary?.let { it.readAt != null || it.status == "read" } ?: false
+    val canUnseal = d != null && viewerId != null && d.summary.recipient?.id == viewerId
+    // 仅以 letterId 为 key,避免后台 reload 翻转 readAt 触发 phase 重置(会吞掉 FoldingBack)。
+    // 初始相位在 letterId 首次非空时定型,后续不再被外部状态变更覆盖。
+    var phase by rememberSaveable(letterId) {
+        mutableStateOf(
+            if (canUnseal && !isOpenedAlready) ReadingPhase.Sealed else ReadingPhase.Reading,
+        )
+    }
+
+    val foldProgress = remember { Animatable(0f) }
+    LaunchedEffect(phase) {
+        if (phase == ReadingPhase.FoldingBack) {
+            foldProgress.snapTo(0f)
+            foldProgress.animateTo(1f, tween(850, easing = LinearOutSlowInEasing))
+            onBack()
+        }
+    }
+
+    val handleBack: () -> Unit = {
+        when (phase) {
+            ReadingPhase.Reading -> phase = ReadingPhase.FoldingBack
+            ReadingPhase.FoldingBack -> Unit  // 动画进行中,忽略重复点击
+            else -> onBack()
         }
     }
 
@@ -103,39 +140,56 @@ private fun LetterDetailContent(
                 trailing = state.detail?.summary?.let { s ->
                     formatLocalDateTime(s.deliveredAt ?: s.deliveryAt ?: s.sentAt) ?: ""
                 } ?: "",
-                onBack = onBack,
+                onBack = handleBack,
             )
 
-            val d = state.detail
             if (d == null) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     PaperLoadingHint()
                 }
             } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 32.dp, vertical = 40.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    LetterPaper(detail = d, stickers = state.stickers)
+                when (phase) {
+                    ReadingPhase.Sealed, ReadingPhase.Opening -> {
+                        val view = d.toEnvelopeView(mine = false)
+                        UnsealOverlay(
+                            view = view,
+                            phase = if (phase == ReadingPhase.Sealed) UnsealPhase.Sealed else UnsealPhase.Opening,
+                            onClickWhenSealed = {
+                                // 用户主动拆封 —— 此刻才把 delivered → read,扣减未读计数
+                                onMarkRead()
+                                phase = ReadingPhase.Opening
+                            },
+                            onOpenComplete = { phase = ReadingPhase.Reading },
+                        )
+                    }
+                    ReadingPhase.Reading, ReadingPhase.FoldingBack -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 32.dp, vertical = 40.dp)
+                                .foldBackTransform(if (phase == ReadingPhase.FoldingBack) foldProgress.value else 0f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            LetterPaper(detail = d, stickers = state.stickers)
 
-                    Spacer(Modifier.height(24.dp))
+                            Spacer(Modifier.height(24.dp))
 
-                    ActionBar(
-                        detail = d,
-                        viewerIsRecipient = viewerId != null && d.summary.recipient?.id == viewerId,
-                        onReply = { onReply(d.summary.sender?.handle) },
-                        onToggleFavorite = onToggleFavorite,
-                        onShowFolderPicker = onShowFolderPicker,
-                        onHide = onHide,
-                        onUnhide = onUnhide,
-                    )
+                            ActionBar(
+                                detail = d,
+                                viewerIsRecipient = viewerId != null && d.summary.recipient?.id == viewerId,
+                                onReply = { onReply(d.summary.sender?.handle) },
+                                onToggleFavorite = onToggleFavorite,
+                                onShowFolderPicker = onShowFolderPicker,
+                                onHide = onHide,
+                                onUnhide = onUnhide,
+                            )
 
-                    if (state.events.isNotEmpty()) {
-                        Spacer(Modifier.height(24.dp))
-                        EventsSection(events = state.events)
+                            if (state.events.isNotEmpty()) {
+                                Spacer(Modifier.height(24.dp))
+                                EventsSection(events = state.events)
+                            }
+                        }
                     }
                 }
             }
@@ -536,4 +590,24 @@ private fun AttachmentsSection(
             }
         }
     }
+}
+
+private fun LetterDetailDto.toEnvelopeView(mine: Boolean): EnvelopeView {
+    val s = summary
+    val direction = if (mine) EnvelopeView.Direction.Outgoing else EnvelopeView.Direction.Incoming
+    val party = if (mine) s.recipient else s.sender
+    val partyName = party?.displayName?.takeIf { it.isNotBlank() } ?: "未知"
+    val partyInitial = partyName.firstOrNull()?.toString() ?: "·"
+    val city = s.recipientAddressLabel?.takeIf { it.isNotBlank() } ?: "—"
+    val time = formatLocalDate(s.deliveredAt ?: s.deliveryAt ?: s.sentAt) ?: "—"
+    val stamp = Stamps.byId(s.stampCode ?: "airmail")
+    return EnvelopeView(
+        direction = direction,
+        partyName = partyName,
+        partyInitial = partyInitial,
+        cityOrAddress = city,
+        sentAt = time,
+        stamp = stamp,
+        opened = s.readAt != null || s.status == "read",
+    )
 }

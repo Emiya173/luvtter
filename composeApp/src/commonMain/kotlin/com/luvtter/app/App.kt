@@ -1,6 +1,7 @@
 package com.luvtter.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.navigation.compose.NavHost
 import com.luvtter.app.theme.LuvtterTheme
 import androidx.navigation.compose.composable
@@ -24,6 +25,7 @@ import com.luvtter.app.ui.home.HomeScreen
 import com.luvtter.app.ui.letter.LetterDetailScreen
 import com.luvtter.app.ui.sessions.SessionsScreen
 import com.luvtter.shared.auth.TokenStore
+import com.luvtter.shared.config.loadAppConfig
 import com.luvtter.shared.network.createRawHttpClient
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
@@ -36,8 +38,10 @@ expect val apiBaseUrl: String
 
 @Composable
 fun App() {
+    val cfg = remember { loadAppConfig() }
+    val effectiveBaseUrl = cfg.server.baseUrl.takeIf { it.isNotBlank() } ?: apiBaseUrl
     KoinApplication(application = {
-        modules(appModule(apiBaseUrl))
+        modules(appModule(effectiveBaseUrl, cfg))
     }) {
         setSingletonImageLoaderFactory { ctx: PlatformContext ->
             ImageLoader.Builder(ctx)

@@ -15,11 +15,14 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.luvtter.app.theme.LuvtterTheme
 import com.luvtter.app.ui.common.*
 import com.luvtter.app.ui.letter.*
 import com.luvtter.contract.dto.*
+import com.luvtter.shared.config.AppConfig
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -35,6 +38,13 @@ fun HomeScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val user = vm.session.collectAsStateWithLifecycle().value?.user
+    val cfg: AppConfig = koinInject()
+    // 从详情/写信页回到 Home 时刷新当前 tab + 通知列表 + 未读铃铛
+    // (拆封会改信件状态 + 服务端同步清掉对应通知,寄信也是同样路径)
+    LifecycleResumeEffect(Unit) {
+        vm.refreshAfterReturn()
+        onPauseOrDispose { }
+    }
     val uriHandler = LocalUriHandler.current
     val onOpenExport: (String) -> Unit = { url -> runCatching { uriHandler.openUri(url) } }
     var showNotifications by remember { mutableStateOf(false) }
@@ -95,7 +105,8 @@ fun HomeScreen(
             onOpenLetter(id)
         },
         onDeleteDraft = vm::deleteDraft,
-        onExpedite = vm::expedite,
+        onExpedite = if (cfg.features.showExpedite) vm::expedite else { _ -> },
+        showExpedite = cfg.features.showExpedite,
         onHide = vm::hide,
         onUnhide = vm::unhide,
         onRequestExport = {
@@ -147,6 +158,7 @@ private fun HomeContent(
     onOpenLetterFromSearch: (String) -> Unit,
     onDeleteDraft: (String) -> Unit,
     onExpedite: (String) -> Unit,
+    showExpedite: Boolean,
     onHide: (String) -> Unit,
     onUnhide: (String) -> Unit,
     onRequestExport: () -> Unit,
@@ -312,6 +324,7 @@ private fun HomeContent(
                 OutboxList(
                     letters = state.letters,
                     onOpen = onOpenLetter,
+                    onExpedite = if (showExpedite) onExpedite else null,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else if (state.tab == HomeTab.Drafts && !state.showHidden) {
@@ -348,7 +361,7 @@ private fun HomeContent(
                             mine = mine,
                             onClick = { if (isDraft) onEditDraft(l.id) else onOpenLetter(l.id) },
                             onDeleteDraft = if (isDraft) { { onDeleteDraft(l.id) } } else null,
-                            onExpedite = if (mine && l.status == "in_transit") { { onExpedite(l.id) } } else null,
+                            onExpedite = if (showExpedite && mine && l.status == "in_transit") { { onExpedite(l.id) } } else null,
                             onHide = if (!state.showHidden && !l.hidden) { { onHide(l.id) } } else null,
                             onUnhide = if (state.showHidden || l.hidden) { { onUnhide(l.id) } } else null,
                         )

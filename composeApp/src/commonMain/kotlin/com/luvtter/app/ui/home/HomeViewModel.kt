@@ -100,6 +100,22 @@ class HomeViewModel(
 
     fun reloadLetters() { viewModelScope.launch { reload() } }
 
+    /**
+     * 从次级页(详情/写信)返回 Home 时调用。
+     * 只刷新「拆封 / 寄信」会改的部分:当前 tab 信件 + 通知列表 + 未读计数。
+     * 不去拉地址/卷宗/onboarding —— 那些在拆信场景下不会变。
+     */
+    fun refreshAfterReturn() {
+        viewModelScope.launch { reload() }
+        viewModelScope.launch {
+            runCatching {
+                val list = notifications.list()
+                val count = notifications.unreadCount()
+                _state.update { it.copy(notifications = list, unread = count) }
+            }
+        }
+    }
+
     private suspend fun reload() {
         val s = _state.value
         _state.update { it.copy(loading = true, error = null) }
