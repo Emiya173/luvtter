@@ -28,6 +28,11 @@ tasks:
   # 部署 image-worker 时设为 false,把 ocr_index 让给 Python worker
   useStubOcr: "${USE_STUB_OCR:true}"
 
+auth:
+  # 是否允许 HTTP 注册接口可用。设为 false 后,/api/v1/auth/register 一律返回 403,
+  # 此时只能通过 server CLI(./gradlew :server:cli --args="register-user ...")在本机创建账号。
+  allowRegistration: "${AUTH_ALLOW_REGISTRATION:false}"
+
 jwt:
   secret: "${JWT_SECRET:dev-secret-change-me}"
   issuer: "letter-app"

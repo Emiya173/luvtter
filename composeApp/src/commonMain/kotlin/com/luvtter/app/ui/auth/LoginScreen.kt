@@ -23,17 +23,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.luvtter.app.theme.LuvtterTheme
+import com.luvtter.shared.config.AppConfig
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun LoginScreen(
     onSuccess: () -> Unit,
     onGoRegister: () -> Unit,
-    vm: LoginViewModel = koinViewModel()
+    vm: LoginViewModel = koinViewModel(),
+    appConfig: AppConfig = koinInject(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     LoginContent(
         state = state,
+        showRegister = appConfig.features.allowRegistration,
         onEmailChange = vm::onEmailChange,
         onPasswordChange = vm::onPasswordChange,
         onSubmit = { vm.submit(onSuccess) },
@@ -44,6 +48,7 @@ fun LoginScreen(
 @Composable
 private fun LoginContent(
     state: LoginUiState,
+    showRegister: Boolean,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onSubmit: () -> Unit,
@@ -163,31 +168,33 @@ private fun LoginContent(
                     )
                 }
 
-                Spacer(Modifier.height(20.dp))
+                if (showRegister) {
+                    Spacer(Modifier.height(20.dp))
 
-                // Switch to register
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "尚无信籍？",
-                        style = tokens.typography.meta.copy(
-                            fontSize = 11.sp,
-                            color = tokens.colors.inkFaded,
-                        ),
-                    )
-                    TextButton(
-                        onClick = onGoRegister,
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                    ) {
+                    // Switch to register
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "↗ 申 领 入 籍",
-                            style = TextStyle(
-                                fontFamily = tokens.fonts.serifZh,
-                                fontSize = 13.sp,
-                                color = tokens.colors.ink,
-                                letterSpacing = 0.6.sp,
-                                fontWeight = FontWeight.Medium,
+                            "尚无信籍？",
+                            style = tokens.typography.meta.copy(
+                                fontSize = 11.sp,
+                                color = tokens.colors.inkFaded,
                             ),
                         )
+                        TextButton(
+                            onClick = onGoRegister,
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                        ) {
+                            Text(
+                                "↗ 申 领 入 籍",
+                                style = TextStyle(
+                                    fontFamily = tokens.fonts.serifZh,
+                                    fontSize = 13.sp,
+                                    color = tokens.colors.ink,
+                                    letterSpacing = 0.6.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                            )
+                        }
                     }
                 }
             }

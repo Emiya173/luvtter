@@ -34,6 +34,19 @@ jobs:
       - name: Run :server:test
         run: ./gradlew :server:test --no-daemon --stacktrace
 
+      # 验证 CLI 也能编译 + 打进 application 发行包(bin/luvtter-cli + bin/luvtter-server)
+      - name: Verify server + cli distribution build
+        run: ./gradlew :server:installDist --no-daemon --stacktrace
+
+      - name: Smoke-check distribution layout
+        run: |
+          set -e
+          BIN="server/build/install/luvtter-server/bin"
+          for f in luvtter-server luvtter-server.bat luvtter-cli luvtter-cli.bat; do
+            test -e "$BIN/$f" || { echo "::error::missing $BIN/$f"; ls -la "$BIN" || true; exit 1; }
+          done
+          echo "OK: server + cli scripts present"
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4

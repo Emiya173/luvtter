@@ -1,7 +1,9 @@
 package com.luvtter.server.di
 
+import com.luvtter.server.auth.AuthPolicy
 import com.luvtter.server.auth.AuthService
 import com.luvtter.server.auth.JwtConfig
+import com.luvtter.server.auth.authPolicy
 import com.luvtter.server.auth.jwtConfig
 import com.luvtter.server.mail.AttachmentService
 import com.luvtter.server.mail.EventGenerator
@@ -26,6 +28,7 @@ import org.koin.dsl.module
 
 fun configModule(config: ApplicationConfig) = module {
     single<JwtConfig> { config.jwtConfig() }
+    single<AuthPolicy> { config.authPolicy() }
     single<StorageConfig> { config.storageConfig() }
     single<TasksConfig> {
         val poll = config.propertyOrNull("tasks.pollMillis")?.getString()?.toLongOrNull() ?: 2_000L

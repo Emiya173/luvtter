@@ -16,3 +16,5 @@ password = ""
 [features]
 # 寄件箱「加 速 到 达」按钮(把在途信件压缩到 N 秒后送达,仅供测试)
 showExpedite = true
+# 登录页是否展示「申领入籍」入口。服务器关闭注册时,这里也设 false。
+allowRegistration = true

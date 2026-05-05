@@ -50,7 +50,8 @@ private fun testConfig(useMinio: Boolean): MapApplicationConfig {
         "jwt.accessTokenTtlSeconds" to "3600",
         "jwt.refreshTokenTtlDays" to "1",
         "notifications.heartbeatSeconds" to "1",
-        "tasks.pollMillis" to "150"
+        "tasks.pollMillis" to "150",
+        "auth.allowRegistration" to "true"
     )
 }
 

@@ -42,7 +42,7 @@ jobs:
           echo "Tag $TAG -> $TAG_SHA is on main."
 
   server-jar:
-    name: Server fat jar
+    name: Server fat jar + dist (server + cli scripts)
     needs: guard-main
     runs-on: ubuntu-latest
     steps:
@@ -52,16 +52,26 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build server fat jar
-        run: ./gradlew :server:buildFatJar --no-daemon --stacktrace
-      - name: Stage artifact
+      - name: Build server fat jar + distribution
+        run: ./gradlew :server:buildFatJar :server:distTar --no-daemon --stacktrace
+      - name: Stage artifacts
         run: |
+          set -e
           mkdir -p release-artifacts
-          cp server/build/libs/*-all.jar release-artifacts/server-${{ github.event.inputs.tag || github.ref_name }}.jar
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+
+          # 1) Ktor fat jar(单文件,直接 java -jar 启动服务,或 java -cp ... LuvtterCliKt 跑 CLI)
+          cp server/build/libs/luvtter-server-*-all.jar \
+             "release-artifacts/luvtter-server-${TAG}.jar"
+
+          # 2) application distribution(bin/luvtter-server + bin/luvtter-cli + lib/),解压即跑
+          cp server/build/distributions/luvtter-server-*.tar \
+             "release-artifacts/luvtter-server-${TAG}-dist.tar"
+          gzip -9 "release-artifacts/luvtter-server-${TAG}-dist.tar"
       - uses: actions/upload-artifact@v4
         with:
-          name: server-jar
-          path: release-artifacts/*.jar
+          name: server-bundle
+          path: release-artifacts/*
           retention-days: 1
 
   android-apk:

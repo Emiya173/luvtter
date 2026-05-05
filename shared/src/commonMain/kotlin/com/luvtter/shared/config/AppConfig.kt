@@ -34,6 +34,8 @@ data class AppConfig(
     data class FeatureFlags(
         /** 寄件箱在途信件是否显示「加 速 到 达」按钮。生产建议关闭。 */
         val showExpedite: Boolean = true,
+        /** 登录页是否展示「申领入籍」入口。设为 false 后客户端隐藏注册路径(适合服务器禁用注册的部署)。 */
+        val allowRegistration: Boolean = true,
     )
 
     companion object {

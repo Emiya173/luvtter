@@ -2,6 +2,7 @@ package com.luvtter.server.auth
 
 import com.luvtter.contract.dto.*
 import com.luvtter.server.common.parseId
+import com.luvtter.server.config.ApiException
 import com.luvtter.server.user.AddressService
 import com.luvtter.server.user.ExportService
 import com.luvtter.server.user.OnboardingService
@@ -13,9 +14,16 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-fun Route.authRoutes(authService: AuthService, userService: UserService) {
+fun Route.authRoutes(authService: AuthService, userService: UserService, policy: AuthPolicy) {
     route("/api/v1/auth") {
         post("/register") {
+            if (!policy.allowRegistration) {
+                throw ApiException(
+                    "REGISTRATION_DISABLED",
+                    "注册已停用,请联系管理员",
+                    HttpStatusCode.Forbidden
+                )
+            }
             val req = call.receive<RegisterRequest>()
             val tokens = authService.register(req, deviceName = null, platform = null)
             call.respond(HttpStatusCode.Created, ApiResponse(tokens))
