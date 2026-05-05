@@ -532,6 +532,22 @@ class LetterService(
             }
     }
 
+    /** 把单个 letter_event 标已读。已读则幂等 no-op。viewer 必须是寄/收件人。 */
+    fun markEventRead(viewerId: Uuid, letterId: Uuid, eventId: Uuid) = transaction {
+        val row = Letters.selectAll().where { Letters.id eq letterId }.firstOrNull()
+            ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        if (row[Letters.senderId] != viewerId && row[Letters.recipientId] != viewerId) {
+            throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")
+        }
+        LetterEvents.update({
+            (LetterEvents.id eq eventId) and
+                (LetterEvents.letterId eq letterId) and
+                LetterEvents.readAt.isNull()
+        }) {
+            it[readAt] = now()
+        }
+    }
+
     fun unhide(viewerId: Uuid, id: Uuid) = transaction {
         val row = Letters.selectAll().where { Letters.id eq id }.firstOrNull()
             ?: throw NotFoundException("LETTER_NOT_FOUND", "信件不存在")

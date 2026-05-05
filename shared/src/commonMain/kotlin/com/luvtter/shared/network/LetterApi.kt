@@ -75,6 +75,10 @@ class LetterApi(private val client: HttpClient) {
     suspend fun events(id: String): List<LetterEventDto> =
         client.get("/api/v1/letters/$id/events").unwrap()
 
+    suspend fun markEventRead(letterId: String, eventId: String) {
+        client.post("/api/v1/letters/$letterId/events/$eventId/read").ensureSuccess()
+    }
+
     suspend fun favorite(id: String) {
         client.post("/api/v1/letters/$id/favorite").ensureSuccess()
     }

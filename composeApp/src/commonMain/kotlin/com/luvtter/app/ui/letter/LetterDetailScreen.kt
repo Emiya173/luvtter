@@ -3,6 +3,8 @@ package com.luvtter.app.ui.letter
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -72,6 +74,7 @@ fun LetterDetailScreen(
         onUnhide = { vm.unhide(onBack) },
         onClearError = vm::clearError,
         onMarkRead = vm::markRead,
+        onMarkEventRead = vm::markEventRead,
     )
 }
 
@@ -90,6 +93,7 @@ private fun LetterDetailContent(
     onUnhide: () -> Unit,
     onClearError: () -> Unit,
     onMarkRead: () -> Unit,
+    onMarkEventRead: (String) -> Unit,
 ) {
     val tokens = LuvtterTheme.tokens
     val toast = rememberPaperToastState()
@@ -114,12 +118,16 @@ private fun LetterDetailContent(
 
     val foldProgress = remember { Animatable(0f) }
     LaunchedEffect(phase) {
-        if (phase == ReadingPhase.FoldingBack) {
-            foldProgress.snapTo(0f)
-            foldProgress.animateTo(1f, tween(850, easing = LinearOutSlowInEasing))
-            onBack()
-        }
+        if (phase != ReadingPhase.FoldingBack) return@LaunchedEffect
+        foldProgress.snapTo(0f)
+        // LaunchedEffect 自带 CoroutineScope:并行起动画,主流程 80ms 后 pop,
+        // 余下动画在 pop 触发的取消时自然了结,不必嵌 coroutineScope。
+        launch { foldProgress.animateTo(1f, tween(180, easing = LinearOutSlowInEasing)) }
+        delay(80)
+        onBack()
     }
+
+    val shownEventIds = remember(letterId) { mutableStateListOf<String>() }
 
     val handleBack: () -> Unit = {
         when (phase) {
@@ -194,6 +202,12 @@ private fun LetterDetailContent(
                 }
             }
         }
+        EventOverlay(
+            events = state.events,
+            enabled = phase == ReadingPhase.Reading && d != null,
+            shownIds = shownEventIds,
+            onEventRead = onMarkEventRead,
+        )
         PaperToastHost(toast, modifier = Modifier.align(Alignment.BottomCenter))
     }
 

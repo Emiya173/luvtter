@@ -88,4 +88,16 @@ class LetterDetailViewModel(
     }
 
     fun clearError() = _state.update { it.copy(error = null) }
+
+    /** 浮层播完一张事件后调,把 read_at 写到服务端,跨会话不再重播。失败静默(本地仍然短期记住)。 */
+    fun markEventRead(eventId: String) {
+        viewModelScope.launch {
+            runCatching { letters.markEventRead(letterId, eventId) }
+            _state.update { st ->
+                st.copy(events = st.events.map {
+                    if (it.id == eventId && it.readAt == null) it.copy(readAt = "client") else it
+                })
+            }
+        }
+    }
 }

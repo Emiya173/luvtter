@@ -366,12 +366,12 @@ private fun ShardLayer(
 }
 
 /**
- * 折回动画。Reading → onBack 之间播放 850ms。
- * 用 Modifier 包在 Reading 内容外:整体 translationY 100% 下沉 + alpha 1→0。
+ * 折回动画。Reading → onBack 之间短促播放,留个收束感后立刻让导航 pop 接手。
+ * 仅做轻量 alpha + 微下沉,避免大位移带来的"长尾"。
  */
 fun Modifier.foldBackTransform(progress: Float): Modifier =
     this.graphicsLayer {
         val p = progress.coerceIn(0f, 1f)
-        translationY = size.height * 0.6f * p
+        translationY = size.height * 0.08f * p
         alpha = 1f - p
     }

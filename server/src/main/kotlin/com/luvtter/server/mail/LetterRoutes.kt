@@ -85,6 +85,13 @@ fun Route.letterRoutes(service: LetterService, ocr: OcrTaskQuery) {
                 val id = parseId(call.parameters["id"]!!)
                 call.respond(ApiResponse(service.events(uid, id)))
             }
+            post("/{id}/events/{eventId}/read") {
+                val uid = call.principal<JWTPrincipal>()!!.userId()
+                val id = parseId(call.parameters["id"]!!)
+                val eventId = parseId(call.parameters["eventId"]!!)
+                service.markEventRead(uid, id, eventId)
+                call.respond(HttpStatusCode.NoContent)
+            }
             get("/{id}/ocr-status") {
                 val uid = call.principal<JWTPrincipal>()!!.userId()
                 val id = parseId(call.parameters["id"]!!)
