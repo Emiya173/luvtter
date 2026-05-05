@@ -8,9 +8,13 @@ import com.luvtter.server.config.configureDatabase
 import com.luvtter.server.config.runMigrations
 import com.luvtter.server.db.AuthCredentials
 import com.luvtter.server.db.Users
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.LoggerContext
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.config.yaml.YamlConfig
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.slf4j.Logger as Slf4jLogger
+import org.slf4j.LoggerFactory
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -29,12 +33,16 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
  * 所有命令都直接连后端配置(application.yaml + 环境变量)的数据库,绕过 HTTP 层,不受 auth.allowRegistration 影响。
  */
 fun main(args: Array<String>) {
-    if (args.isEmpty() || args[0] in listOf("help", "-h", "--help")) {
+    val verbose = System.getenv("LUVTTER_CLI_VERBOSE") == "1" || args.contains("--verbose")
+    quietenLogs(verbose)
+
+    val cleanArgs = args.filterNot { it == "--verbose" }.toTypedArray()
+    if (cleanArgs.isEmpty() || cleanArgs[0] in listOf("help", "-h", "--help")) {
         printHelp()
         return
     }
-    val cmdName = args[0]
-    val cmdArgs = parseArgs(args.copyOfRange(1, args.size))
+    val cmdName = cleanArgs[0]
+    val cmdArgs = parseArgs(cleanArgs.copyOfRange(1, cleanArgs.size))
     val command = commands[cmdName] ?: run {
         System.err.println("未知命令: $cmdName")
         printHelp()
@@ -49,6 +57,21 @@ fun main(args: Array<String>) {
     } finally {
         ds.close()
     }
+}
+
+private fun quietenLogs(verbose: Boolean) {
+    val ctx = LoggerFactory.getILoggerFactory() as? LoggerContext ?: return
+    ctx.getLogger(Slf4jLogger.ROOT_LOGGER_NAME).detachAppender("FILE")
+    if (verbose) return
+    val targets = listOf(
+        Slf4jLogger.ROOT_LOGGER_NAME,
+        "com.luvtter",
+        "com.zaxxer.hikari",
+        "org.flywaydb",
+        "Exposed",
+        "io.ktor",
+    )
+    targets.forEach { ctx.getLogger(it).level = Level.WARN }
 }
 
 private val commands: Map<String, CliCommand> = listOf(

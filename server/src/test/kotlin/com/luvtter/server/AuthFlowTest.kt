@@ -1,6 +1,7 @@
 package com.luvtter.server
 
 import com.luvtter.contract.dto.ApiResponse
+import com.luvtter.contract.dto.ErrorResponse
 import com.luvtter.contract.dto.LoginRequest
 import com.luvtter.contract.dto.RegisterRequest
 import com.luvtter.contract.dto.TokenPair
@@ -73,5 +74,15 @@ class AuthFlowTest {
     fun `me without token returns 401`() = runServerTest { client ->
         val resp = client.get("/api/v1/me")
         assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
+    @Test
+    fun `register returns 403 when registration disabled`() = runServerTest(allowRegistration = false) { client ->
+        val resp = client.post("/api/v1/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest(email = "blocked@example.com", password = "password123", displayName = "Blocked"))
+        }
+        assertEquals(HttpStatusCode.Forbidden, resp.status)
+        assertEquals("REGISTRATION_DISABLED", resp.body<ErrorResponse>().error.code)
     }
 }

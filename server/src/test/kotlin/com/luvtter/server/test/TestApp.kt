@@ -88,11 +88,16 @@ fun truncateUserData() {
 
 fun runServerTest(
     useMinio: Boolean = false,
+    allowRegistration: Boolean = true,
     block: suspend ApplicationTestBuilder.(client: HttpClient) -> Unit
 ) {
     truncateUserData()
     testApplication {
-        environment { config = testConfig(useMinio) }
+        environment {
+            config = testConfig(useMinio).apply {
+                put("auth.allowRegistration", allowRegistration.toString())
+            }
+        }
         application { module() }
         val client = createClient {
             install(ContentNegotiation) { json(testJson) }
